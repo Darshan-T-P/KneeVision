@@ -1,0 +1,15 @@
+[project]
+name = "kneevision"
+version = "0.1.0"
+description = "Knee OA severity grading using X-ray deep learning"
+requires-python = ">=3.11"
+dependencies = [
+    "torch>=2.0",
+    "torchvision",
+    "numpy",
+    "pillow",
+    "tqdm",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
