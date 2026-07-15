@@ -4,35 +4,44 @@ import numpy as np
 from .base import overlay_heatmap, get_prediction
 
 
-class GradCAM:
+class ScoreCAM:
     def __init__(self, model: torch.nn.Module, target_layer: str = "backbone.features.denseblock4"):
         self.model = model
         self.model.eval()
-        self.gradients = None
         self.activations = None
-        self._register_hooks(target_layer)
+        self._register_hook(target_layer)
 
-    def _register_hooks(self, target_layer: str):
+    def _register_hook(self, target_layer: str):
         module = dict(self.model.named_modules())[target_layer]
 
         def forward_hook(_, __, output):
             self.activations = output
 
-        def backward_hook(_, __, grad_output):
-            self.gradients = grad_output[0]
-
         module.register_forward_hook(forward_hook)
-        module.register_backward_hook(backward_hook)
 
     def generate(self, x: torch.Tensor, class_idx: int | None = None) -> np.ndarray:
-        logits = self.model(x)
+        _ = self.model(x)
+
         if class_idx is None:
-            class_idx = logits.argmax(dim=1).item()
+            with torch.inference_mode():
+                logits = self.model(x)
+                class_idx = logits.argmax(dim=1).item()
 
-        self.model.zero_grad()
-        logits[0, class_idx].backward()
+        B, C, H, W = self.activations.shape
+        activations = self.activations.detach()
 
-        weights = self.gradients.mean(dim=(2, 3), keepdim=True)
+        weights = torch.zeros(C, device=x.device)
+        upsampled = F.interpolate(activations, size=x.shape[2:], mode="bilinear", align_corners=False)
+
+        for i in range(C):
+            cam_i = upsampled[0, i].unsqueeze(0).unsqueeze(0)
+            cam_i = (cam_i - cam_i.min()) / (cam_i.max() - cam_i.min() + 1e-8)
+            masked = x * cam_i
+            with torch.inference_mode():
+                score = F.softmax(self.model(masked), dim=1)[0, class_idx]
+            weights[i] = score
+
+        weights = weights.view(1, C, 1, 1)
         cam = (weights * self.activations).sum(dim=1, keepdim=True)
         cam = F.relu(cam)
         cam = F.interpolate(cam, size=x.shape[2:], mode="bilinear", align_corners=False)
@@ -51,8 +60,8 @@ def explain(
     x = transform(image).unsqueeze(0).to(device)
     pred, confidence, _ = get_prediction(model, x, device)
 
-    gradcam = GradCAM(model)
-    cam = gradcam.generate(x, class_idx=pred)
+    scorecam = ScoreCAM(model)
+    cam = scorecam.generate(x, class_idx=pred)
     img_np = np.array(image.resize((224, 224))) / 255.0
     overlay = overlay_heatmap(cam, img_np)
 
