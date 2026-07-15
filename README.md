@@ -10,15 +10,18 @@ Explainable multimodal AI for knee osteoarthritis severity grading and personali
 - Dependency management with `uv` / `pyproject.toml`
 
 ### Phase 2 — X-ray Analysis (KL Classification) ✅
-- **Model:** DenseNet121 (with pretrained ImageNet weights) + custom classifier head
+- **Models:** DenseNet121 & EfficientNet-B4 (with pretrained ImageNet weights) + custom classifier heads
 - **Dataset:** Kaggle Knee OA — 8,260 X-rays (KL grades 0-4)
-- **Training:** Train/val split, weighted loss for class imbalance, cosine annealing LR
-- **Script:** `scripts/train_xray.py`
+- **Training:** Train/val/test splits, Focal Loss for class imbalance, cosine annealing LR
+- **Evaluation:** Ensemble prediction, Cohen's Kappa, Confusion Matrix, Classification Report
+- **Scripts:** `scripts/train_xray.py`, `scripts/compare_models.py`, `scripts/evaluate.py`
 
-### Phase 3 — Explainable AI (Grad-CAM) ✅
-- Custom Grad-CAM implementation (no extra dependencies)
+### Phase 3 — Explainable AI (XAI) ✅
+- Abstract Base XAI implementation (`src/kneevision/xai/base.py`)
+- Custom Grad-CAM (`src/kneevision/xai/gradcam.py`)
+- Custom LIME (`src/kneevision/xai/lime.py`)
+- Custom Score-CAM (`src/kneevision/xai/scorecam.py`)
 - Heatmap overlay generation
-- `src/kneevision/xai/gradcam.py`
 
 ### Upcoming Phases
 - Phase 4 — Clinical Information Processing (BioClinicalBERT)
@@ -35,9 +38,14 @@ source .venv/bin/activate
 
 ## Usage
 
-Train the X-ray classifier:
+Train and compare the X-ray classifiers (DenseNet121 & EfficientNet-B4):
 ```bash
-python scripts/train_xray.py
+python scripts/compare_models.py
+```
+
+Evaluate an ensemble of the trained models on the test set:
+```bash
+python scripts/evaluate.py
 ```
 
 ## Dataset

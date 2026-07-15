@@ -53,6 +53,9 @@ def main():
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
 
+    save_dir = Path("models")
+    save_dir.mkdir(exist_ok=True)
+
     best_acc = 0.0
     for epoch in range(1, NUM_EPOCHS + 1):
         train_loss = train_epoch(model, train_loader, criterion, optimizer, device)
@@ -63,7 +66,7 @@ def main():
 
         if val_acc > best_acc:
             best_acc = val_acc
-            torch.save(model.state_dict(), "models/best_model.pt")
+            torch.save(model.state_dict(), save_dir / "best_model.pt")
             print(f"  -> Saved best model (acc={val_acc:.4f})")
 
 
