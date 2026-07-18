@@ -13,6 +13,7 @@ from kneevision.config.settings import RAW_DATA_DIR, BATCH_SIZE
 from kneevision.models.image_model import KneeXRayClassifier
 from kneevision.data.dataset import KneeXRayDataset
 from kneevision.data.transforms import val_transform
+from kneevision.training.losses import ordinal_to_class
 from kneevision.utils.helpers import get_device
 
 
@@ -37,7 +38,16 @@ def ensemble_predict(models: list[torch.nn.Module], loader: DataLoader, device: 
         probs = torch.zeros(len(images), 5, device=device)
         for model in models:
             model.eval()
-            probs += F.softmax(model(images), dim=1)
+            logits = model(images)
+            if getattr(model, "ordinal", False):
+                # Ordinal model: convert binary probs to class distribution
+                ordinal_probs = torch.sigmoid(logits)
+                # Approximate class probs from ordinal predictions
+                class_preds = ordinal_to_class(logits)
+                for c in range(5):
+                    probs[:, c] += (class_preds == c).float()
+            else:
+                probs += F.softmax(logits, dim=1)
         probs /= len(models)
         preds = probs.argmax(dim=1)
         all_preds.extend(preds.cpu().tolist())
@@ -52,7 +62,7 @@ def main():
 
     val_paths, val_labels = get_paths_and_labels("test")
     val_ds = KneeXRayDataset(val_paths, val_labels, val_transform)
-    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
+    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
     print(f"Test samples: {len(val_ds)}")
 
     model_names = ["densenet121", "efficientnet-b4"]
@@ -60,15 +70,23 @@ def main():
     for name in model_names:
         path = Path(f"models/best_{name}.pt")
         if not path.exists():
-            print(f"Skip {name}: {path} not found")
-            continue
-        model = KneeXRayClassifier(name, 5).to(device)
-        model.load_state_dict(torch.load(path, map_location=device, weights_only=True))
+            path2 = Path(f"models/best_{name}_ordinal.pt")
+            if path2.exists():
+                path = path2
+            else:
+                print(f"Skip {name}: checkpoint not found")
+                continue
+        # Detect ordinal vs standard from state dict size
+        sd = torch.load(path, map_location=device, weights_only=True)
+        last_weight = [v for k, v in sd.items() if "classifier.3.weight" in k or "classifier.4.weight" in k][0]
+        is_ordinal = last_weight.shape[0] == 4
+        model = KneeXRayClassifier(name, 5, ordinal=is_ordinal).to(device)
+        model.load_state_dict(sd)
         models.append(model)
-        print(f"Loaded {name} ({sum(p.numel() for p in model.parameters()):,} params)")
+        print(f"Loaded {name} ({'ordinal' if is_ordinal else 'standard'}, {sum(p.numel() for p in model.parameters()):,} params)")
 
     if not models:
-        print("No trained models found. Train first with compare_models.py")
+        print("No trained models found. Train first.")
         return
 
     preds, labels, probs = ensemble_predict(models, val_loader, device)
