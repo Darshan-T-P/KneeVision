@@ -46,7 +46,7 @@ class ScoreCAM:
         cam = F.relu(cam)
         cam = F.interpolate(cam, size=x.shape[2:], mode="bilinear", align_corners=False)
 
-        cam_np = cam.squeeze().cpu().numpy()
+        cam_np = cam.squeeze().detach().cpu().numpy()
         cam_np = (cam_np - cam_np.min()) / (cam_np.max() - cam_np.min() + 1e-8)
         return cam_np
 
