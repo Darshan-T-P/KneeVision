@@ -4,7 +4,7 @@ from torchvision import models
 
 
 class KneeXRayClassifier(nn.Module):
-    def __init__(self, model_name: str = "densenet121", num_classes: int = 5):
+    def __init__(self, model_name: str = "densenet121", num_classes: int = 5, ordinal: bool = False):
         super().__init__()
         if model_name == "densenet121":
             weights = models.DenseNet121_Weights.IMAGENET1K_V1
@@ -19,13 +19,15 @@ class KneeXRayClassifier(nn.Module):
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
+        self.ordinal = ordinal
+        out_features = num_classes - 1 if ordinal else num_classes
         self.backbone = backbone
         self.classifier = nn.Sequential(
-            nn.Dropout(0.3),
+            nn.Dropout(0.5),
             nn.Linear(in_features, 512),
             nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(512, num_classes),
+            nn.Dropout(0.5),
+            nn.Linear(512, out_features),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
