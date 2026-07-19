@@ -1,21 +1,3 @@
-"""
-OAI Dataset Download & Preparation Script
-
-1. Install NDA tools:   pip install ndatools
-2. Run:                 nda-tools downloads -d <manifest>
-3. Then run this script to organize into train/val/test splits.
-
-Prerequisites:
-  - Approved OAI DAR (you have one: ID 25595)
-  - Downloaded OAI X-ray images via NDA Download Tool
-  - Downloaded Knee X-Ray Image Assessments (ASCII) zip
-
-Usage:
-  python scripts/download_oai.py --image_dir /path/to/downloaded/images \\
-                                  --assessments /path/to/XXKXR??.csv \\
-                                  --output data/raw
-"""
-
 import argparse
 import csv
 import shutil
@@ -25,11 +7,12 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from kneevision.data.prepare import print_split_summary
+from kneevision.utils.logging import setup_logger
+
+logger = setup_logger("download_oai")
 
 
 def parse_kl_assessments(csv_path: Path) -> dict[str, int]:
-    """Parse OAI X-Ray Assessment CSV to get KL grades.
-    Columns vary by assessment file version — look for subject ID and KL columns."""
     kl_map = {}
     with open(csv_path) as f:
         reader = csv.DictReader(f)
@@ -41,7 +24,6 @@ def parse_kl_assessments(csv_path: Path) -> dict[str, int]:
                 elif key.strip().upper() in ("V00KXRKL", "V00KL", "KXRKL", "KL"):
                     kl = row[key]
             if kl and kl.isdigit():
-                # Subject ID column varies — try common names
                 subj_id = None
                 for sk in ("ID", "SUBJECT_ID", "Subject ID", "USUBJID", "subjectid"):
                     if sk in row:
@@ -53,10 +35,8 @@ def parse_kl_assessments(csv_path: Path) -> dict[str, int]:
 
 
 def match_images_to_labels(image_dir: Path, kl_map: dict[str, int]) -> list[tuple[Path, int]]:
-    """Match DICOM image files to KL grades via subject ID in filename."""
     matched = []
     for fpath in sorted(image_dir.rglob("*.dcm")) + sorted(image_dir.rglob("*.png")):
-        # OAI filenames typically contain subject ID
         for subj_id, kl in kl_map.items():
             if subj_id in fpath.stem:
                 matched.append((fpath, kl))
@@ -66,7 +46,6 @@ def match_images_to_labels(image_dir: Path, kl_map: dict[str, int]) -> list[tupl
 
 def organize_splits(matched: list[tuple[Path, int]], output_dir: Path,
                     split_ratio: tuple = (0.7, 0.15, 0.15), seed: int = 42):
-    """Copy images into train/val/test organized by KL grade."""
     random.seed(seed)
     random.shuffle(matched)
     n = len(matched)
@@ -100,37 +79,37 @@ def main():
     output_dir = Path(args.output)
 
     if not image_dir.exists():
-        print(f"Image directory not found: {image_dir}")
-        print("\nDownload images first via NDA Download Tool:")
-        print("  1. Go to https://nda.nih.gov/oai")
-        print("  2. Data Download → Select 'OAI Fixed-Flexion Knee X-rays'")
-        print("  3. Generate manifest → Download with nda-tools")
+        logger.error("Image directory not found: %s", image_dir)
+        logger.info("\nDownload images first via NDA Download Tool:")
+        logger.info("  1. Go to https://nda.nih.gov/oai")
+        logger.info("  2. Data Download -> Select 'OAI Fixed-Flexion Knee X-rays'")
+        logger.info("  3. Generate manifest -> Download with nda-tools")
         return
 
     if not assessment_path.exists():
-        print(f"Assessment file not found: {assessment_path}")
-        print("\nDownload from NDA:")
-        print("  1. Data Download → Select 'Knee X-Ray Image Assessments - ASCII'")
-        print("  2. Unzip and point --assessments to the CSV file")
+        logger.error("Assessment file not found: %s", assessment_path)
+        logger.info("\nDownload from NDA:")
+        logger.info("  1. Data Download -> Select 'Knee X-Ray Image Assessments - ASCII'")
+        logger.info("  2. Unzip and point --assessments to the CSV file")
         return
 
-    print(f"Loading KL assessments from {assessment_path} ...")
+    logger.info("Loading KL assessments from %s ...", assessment_path)
     kl_map = parse_kl_assessments(assessment_path)
-    print(f"  Found {len(kl_map)} KL grade entries")
+    logger.info("  Found %d KL grade entries", len(kl_map))
 
-    print(f"Matching images from {image_dir} ...")
+    logger.info("Matching images from %s ...", image_dir)
     matched = match_images_to_labels(image_dir, kl_map)
-    print(f"  Matched {len(matched)} images to KL grades")
+    logger.info("  Matched %d images to KL grades", len(matched))
 
     if not matched:
-        print("\nNo matches found. Check the assessment CSV column names.")
-        print("Open the CSV and look for the subject ID and KL grade columns.")
-        print("Then update parse_kl_assessments() in this script.")
+        logger.warning("\nNo matches found. Check the assessment CSV column names.")
+        logger.warning("Open the CSV and look for the subject ID and KL grade columns.")
+        logger.warning("Then update parse_kl_assessments() in this script.")
         return
 
-    print(f"Organizing into {output_dir} ...")
+    logger.info("Organizing into %s ...", output_dir)
     splits = organize_splits(matched, output_dir)
-    print("\nDone! Split summary:")
+    logger.info("Done! Split summary:")
     print_split_summary(splits)
 
 

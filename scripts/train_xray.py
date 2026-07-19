@@ -12,6 +12,9 @@ from kneevision.data.dataset import KneeXRayDataset
 from kneevision.data.transforms import train_transform, val_transform
 from kneevision.training.trainer import train_epoch, validate
 from kneevision.utils.helpers import set_seed, get_device
+from kneevision.utils.logging import setup_logger
+
+logger = setup_logger("train_xray")
 
 
 def get_paths_and_labels(split: str) -> tuple[list[Path], list[int]]:
@@ -30,13 +33,13 @@ def get_paths_and_labels(split: str) -> tuple[list[Path], list[int]]:
 def main():
     set_seed(42)
     device = get_device()
-    print(f"Device: {device}")
+    logger.info("Device: %s", device)
 
     train_paths, train_labels = get_paths_and_labels("train")
     val_paths, val_labels = get_paths_and_labels("val")
 
-    print(f"Train: {len(train_paths)} images")
-    print(f"Val:   {len(val_paths)} images")
+    logger.info("Train: %d images", len(train_paths))
+    logger.info("Val:   %d images", len(val_paths))
 
     train_ds = KneeXRayDataset(train_paths, train_labels, train_transform)
     val_ds = KneeXRayDataset(val_paths, val_labels, val_transform)
@@ -62,12 +65,15 @@ def main():
         val_loss, val_acc = validate(model, val_loader, criterion, device)
         scheduler.step()
 
-        print(f"Epoch {epoch:2d} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
+        logger.info(
+            "Epoch %2d | Train Loss: %.4f | Val Loss: %.4f | Val Acc: %.4f",
+            epoch, train_loss, val_loss, val_acc,
+        )
 
         if val_acc > best_acc:
             best_acc = val_acc
             torch.save(model.state_dict(), save_dir / "best_model.pt")
-            print(f"  -> Saved best model (acc={val_acc:.4f})")
+            logger.info("  -> Saved best model (acc=%.4f)", val_acc)
 
 
 if __name__ == "__main__":

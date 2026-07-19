@@ -5,10 +5,13 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from sklearn.metrics import cohen_kappa_score
 from kneevision.training.losses import ordinal_to_class
+from kneevision.utils.logging import setup_logger
+from kneevision.config.settings import MLFLOW_ENABLED
+
+logger = setup_logger("trainer")
 
 
 class EMA:
-    """Exponential Moving Average of model weights."""
     def __init__(self, model: nn.Module, decay: float = 0.999):
         self.decay = decay
         self.model = copy.deepcopy(model)
@@ -134,7 +137,7 @@ def save_checkpoint(path, model, optimizer, scheduler, ema, early_stop,
         "model_name": model_name,
         "ordinal": ordinal,
     }, path)
-    print(f"  Checkpoint saved to {path}")
+    logger.info("Checkpoint saved to %s", path)
 
 
 def load_checkpoint(path, model, optimizer=None, scheduler=None, ema=None, early_stop=None):
