@@ -9,14 +9,21 @@ from tqdm import tqdm
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix, cohen_kappa_score
 
-from kneevision.config.settings import RAW_DATA_DIR, BATCH_SIZE
+from kneevision.config.settings import RAW_DATA_DIR, BATCH_SIZE, MLFLOW_ENABLED
 from kneevision.models.image_model import KneeXRayClassifier
 from kneevision.data.dataset import KneeXRayDataset
 from kneevision.data.transforms import val_transform, tta_transforms_list
 from kneevision.training.losses import ordinal_to_class
 from kneevision.utils.helpers import get_device
+from kneevision.utils.logging import setup_logger
 from torchvision.transforms import functional as TF
 from PIL import Image
+
+logger = setup_logger("evaluate")
+
+if MLFLOW_ENABLED:
+    from kneevision.utils.tracking import MLflowTracker
+    tracker = MLflowTracker()
 
 
 def get_paths_and_labels(split: str):
@@ -81,12 +88,16 @@ def ensemble_predict(models: list[torch.nn.Module], loader: DataLoader,
 
 def main():
     device = get_device()
-    print(f"Device: {device}")
+    logger.info("Device: %s", device)
 
     val_paths, val_labels = get_paths_and_labels("test")
     val_ds = KneeXRayDataset(val_paths, val_labels, val_transform)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
-    print(f"Test samples: {len(val_ds)}")
+    logger.info("Test samples: %d", len(val_ds))
+
+    if MLFLOW_ENABLED:
+        tracker.start_run(run_name=f"evaluate_{time.strftime('%Y%m%d_%H%M%S')}", tags={"phase": "evaluation"})
+        tracker.log_params({"test_samples": len(val_ds), "batch_size": BATCH_SIZE, "tta": True})
 
     model_names = ["densenet121", "efficientnet-b4"]
     models = []
@@ -97,7 +108,7 @@ def main():
             if path2.exists():
                 path = path2
             else:
-                print(f"Skip {name}: checkpoint not found")
+                logger.warning("Skip %s: checkpoint not found", name)
                 continue
         sd = torch.load(path, map_location=device, weights_only=True)
         last_weight = [v for k, v in sd.items() if "classifier" in k and "weight" in k][-1]
@@ -105,26 +116,33 @@ def main():
         model = KneeXRayClassifier(name, 5, ordinal=is_ordinal).to(device)
         model.load_state_dict(sd)
         models.append(model)
-        print(f"Loaded {name} ({'ordinal' if is_ordinal else 'standard'}, {sum(p.numel() for p in model.parameters()):,} params)")
+        n_params = sum(p.numel() for p in model.parameters())
+        logger.info("Loaded %s (%s, %s params)", name, "ordinal" if is_ordinal else "standard", f"{n_params:,}")
 
     if not models:
-        print("No trained models found. Train first.")
+        logger.error("No trained models found. Train first.")
         return
 
     preds, labels, probs = ensemble_predict(models, val_loader, device, use_tta=True)
 
-    print("\n" + "="*60)
-    print("CLASSIFICATION REPORT")
-    print("="*60)
-    print(classification_report(labels, preds, digits=4))
+    logger.info("=" * 60)
+    logger.info("CLASSIFICATION REPORT")
+    logger.info("=" * 60)
+    report = classification_report(labels, preds, digits=4)
+    logger.info("\n%s", report)
 
     kappa = cohen_kappa_score(labels, preds, weights='quadratic')
-    print(f"Cohen Kappa: {kappa:.4f}")
+    logger.info("Cohen Kappa: %.4f", kappa)
 
     cm = confusion_matrix(labels, preds)
-    print("\nConfusion Matrix:")
-    print(cm)
+    logger.info("\nConfusion Matrix:\n%s", cm)
+
+    if MLFLOW_ENABLED:
+        tracker.log_metrics({"test_kappa": kappa, "test_accuracy": (np.array(preds) == np.array(labels)).mean()})
+        tracker.set_tag("num_models", len(models))
+        tracker.end_run()
 
 
 if __name__ == "__main__":
+    import time
     main()
