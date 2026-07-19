@@ -13,7 +13,7 @@ from kneevision.config.settings import (
     WEIGHT_DECAY, MAX_GRAD_NORM, LABEL_SMOOTHING, MIXUP_ALPHA, SAMPLER_POWER,
     EARLY_STOP_PATIENCE, CHECKPOINT_INTERVAL, MLFLOW_ENABLED, MODELS_DIR,
 )
-from kneevision.models.image_model import KneeXRayClassifier, AVAILABLE_MODELS
+from kneevision.models.image_model import KneeXRayClassifier
 from kneevision.data.dataset import KneeXRayDataset, MixUpDataset, make_weighted_sampler
 from kneevision.data.transforms import train_transform, minority_transform, val_transform
 from kneevision.training.trainer import validate, EMA, EarlyStopping, save_checkpoint, load_checkpoint

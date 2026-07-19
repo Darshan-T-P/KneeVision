@@ -6,7 +6,6 @@ from tqdm import tqdm
 from sklearn.metrics import cohen_kappa_score
 from kneevision.training.losses import ordinal_to_class
 from kneevision.utils.logging import setup_logger
-from kneevision.config.settings import MLFLOW_ENABLED
 
 logger = setup_logger("trainer")
 
@@ -117,7 +116,7 @@ def validate(
     if use_kappa:
         score = cohen_kappa_score(all_labels, all_preds, weights='quadratic')
     else:
-        correct = sum(p == l for p, l in zip(all_preds, all_labels))
+        correct = sum(p == t for p, t in zip(all_preds, all_labels))
         score = correct / len(all_labels)
 
     return avg_loss, score

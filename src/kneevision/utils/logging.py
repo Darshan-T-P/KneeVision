@@ -1,6 +1,5 @@
 import logging
 import sys
-from pathlib import Path
 from kneevision.config.settings import PROJECT_ROOT
 
 

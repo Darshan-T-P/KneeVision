@@ -39,7 +39,6 @@ class OrdinalLoss(nn.Module):
         self.num_classes = num_classes
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        B = logits.shape[0]
         labels = torch.arange(self.num_classes - 1, device=targets.device).float()
         if targets.ndim == 2:
             targets = targets.argmax(dim=1)

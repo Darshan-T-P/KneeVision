@@ -63,7 +63,7 @@ def organize_splits(matched: list[tuple[Path, int]], output_dir: Path,
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(img_path, dest)
 
-    return {split: ([p for p, _ in items], [l for _, l in items])
+    return {split: ([p for p, _ in items], [label for _, label in items])
             for split, items in splits.items()}
 
 

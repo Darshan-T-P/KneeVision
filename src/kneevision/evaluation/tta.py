@@ -1,7 +1,6 @@
 import torch
 import torch.nn.functional as F
 from PIL import Image
-import numpy as np
 from kneevision.data.transforms import tta_transforms_list
 from kneevision.training.losses import ordinal_to_class
 

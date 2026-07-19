@@ -1,9 +1,8 @@
 import mlflow
 import torch
-from pathlib import Path
 from typing import Any
 from kneevision.config.settings import (
-    PROJECT_ROOT, MLFLOW_TRACKING_URI, MLFLOW_EXPERIMENT_NAME,
+    MLFLOW_TRACKING_URI, MLFLOW_EXPERIMENT_NAME,
     BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS, IMAGE_SIZE,
     WEIGHT_DECAY, MAX_GRAD_NORM, LABEL_SMOOTHING, MIXUP_ALPHA,
     SAMPLER_POWER, EARLY_STOP_PATIENCE,

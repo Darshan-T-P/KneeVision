@@ -17,7 +17,6 @@ from kneevision.training.losses import ordinal_to_class
 from kneevision.utils.helpers import get_device
 from kneevision.utils.logging import setup_logger
 from torchvision.transforms import functional as TF
-from PIL import Image
 
 logger = setup_logger("evaluate")
 

@@ -1,8 +1,6 @@
 from pathlib import Path
 import csv
 import random
-from torch.utils.data import Dataset
-from PIL import Image
 
 
 def prepare_from_folders(raw_dir: Path) -> dict[str, tuple[list[Path], list[int]]]:
@@ -31,7 +29,7 @@ def prepare_from_csv(csv_path: Path, image_root: Path) -> dict[str, tuple[list[P
     splits: dict[str, tuple[list[Path], list[int]]] = {"train": ([], []), "val": ([], []), "test": ([], [])}
     with open(csv_path) as f:
         reader = csv.reader(f)
-        header = next(reader, None)
+        next(reader, None)
         for row in reader:
             if len(row) < 3:
                 continue

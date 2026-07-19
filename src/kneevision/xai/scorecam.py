@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
+from PIL import Image
 from .base import overlay_heatmap, get_prediction
 from kneevision.training.losses import ordinal_to_class
 
@@ -65,7 +66,7 @@ class ScoreCAM:
 
 def explain(
     model: torch.nn.Module,
-    image: "Image.Image",
+    image: Image.Image,
     transform,
     device: torch.device,
 ) -> tuple[int, float, np.ndarray]:
