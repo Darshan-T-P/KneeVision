@@ -13,6 +13,15 @@ dependencies = [
     "scikit-learn",
     "jupyter",
     "ipykernel",
+    "mlflow>=2.10",
+]
+
+[project.optional-dependencies]
+dev = [
+    "dvc>=3.0",
+    "dvc-s3",
+    "pytest>=7.0",
+    "ruff>=0.3",
 ]
 
 [tool.setuptools.packages.find]
