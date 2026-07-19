@@ -1,3 +1,9 @@
+import importlib.abc as abc
+import importlib.resources.abc as resources_abc
+
+if not hasattr(abc, "Traversable"):
+    abc.Traversable = resources_abc.Traversable
+
 import mlflow
 import torch
 from typing import Any
