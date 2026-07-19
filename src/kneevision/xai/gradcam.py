@@ -38,6 +38,10 @@ class GradCAM:
         cam = F.interpolate(cam, size=x.shape[2:], mode="bilinear", align_corners=False)
 
         cam_np = cam.squeeze().detach().cpu().numpy()
+        if cam_np.ndim == 0:
+            cam_np = np.array([[cam_np.item()]])
+        elif cam_np.ndim == 1:
+            cam_np = cam_np.reshape(1, -1)
         cam_np = (cam_np - cam_np.min()) / (cam_np.max() - cam_np.min() + 1e-8)
         return cam_np
 

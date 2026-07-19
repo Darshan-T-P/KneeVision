@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 from .base import overlay_heatmap, get_prediction
+from kneevision.training.losses import ordinal_to_class
 
 
 class ScoreCAM:
@@ -25,7 +26,10 @@ class ScoreCAM:
         if class_idx is None:
             with torch.inference_mode():
                 logits = self.model(x)
-                class_idx = logits.argmax(dim=1).item()
+                if getattr(self.model, "ordinal", False):
+                    class_idx = ordinal_to_class(logits).item()
+                else:
+                    class_idx = logits.argmax(dim=1).item()
 
         B, C, H, W = self.activations.shape
         activations = self.activations.detach()
@@ -38,7 +42,11 @@ class ScoreCAM:
             cam_i = (cam_i - cam_i.min()) / (cam_i.max() - cam_i.min() + 1e-8)
             masked = x * cam_i
             with torch.inference_mode():
-                score = F.softmax(self.model(masked), dim=1)[0, class_idx]
+                logits = self.model(masked)
+                if getattr(self.model, "ordinal", False):
+                    score = (ordinal_to_class(logits) == class_idx).float()
+                else:
+                    score = F.softmax(logits, dim=1)[0, class_idx]
             weights[i] = score
 
         weights = weights.view(1, C, 1, 1)
@@ -47,6 +55,10 @@ class ScoreCAM:
         cam = F.interpolate(cam, size=x.shape[2:], mode="bilinear", align_corners=False)
 
         cam_np = cam.squeeze().detach().cpu().numpy()
+        if cam_np.ndim == 0:
+            cam_np = np.array([[cam_np.item()]])
+        elif cam_np.ndim == 1:
+            cam_np = cam_np.reshape(1, -1)
         cam_np = (cam_np - cam_np.min()) / (cam_np.max() - cam_np.min() + 1e-8)
         return cam_np
 

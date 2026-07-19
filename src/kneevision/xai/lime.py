@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import numpy as np
 from PIL import Image
 from .base import get_prediction
+from kneevision.training.losses import ordinal_to_class
 
 
 def _segment_grid(h: int, w: int, grid_size: int = 7) -> np.ndarray:
@@ -48,7 +49,11 @@ def explain(
                 masked[mask] = mean_color
         tensor = transform(Image.fromarray((masked * 255).astype(np.uint8))).unsqueeze(0).to(device)
         with torch.inference_mode():
-            scores[i] = model(tensor)[0, pred].item()
+            logits = model(tensor)
+            if getattr(model, "ordinal", False):
+                scores[i] = 1.0 if ordinal_to_class(logits).item() == pred else 0.0
+            else:
+                scores[i] = logits[0, pred].item()
 
     kernel_width = 0.25
     weights = np.exp(-(distances**2) / (kernel_width**2))
