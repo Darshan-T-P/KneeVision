@@ -27,3 +27,11 @@ chroma_db/
 .idea/
 .DS_Store
 notebooks/.ipynb_checkpoints/
+
+# DVC
+.dvc/cache/
+.dvc/tmp/
+
+# MLflow
+mlruns/
+mlartifacts/
