@@ -11,10 +11,23 @@ class FocalLoss(nn.Module):
         self.label_smoothing = label_smoothing
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        if targets.ndim == 2:
+            return self._soft_focal_loss(logits, targets)
+
         ce = F.cross_entropy(logits, targets, weight=self.alpha, reduction="none",
                              label_smoothing=self.label_smoothing)
         pt = torch.exp(-ce)
-        return ( (1 - pt) ** self.gamma * ce ).mean()
+        return ((1 - pt) ** self.gamma * ce).mean()
+
+    def _soft_focal_loss(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        log_probs = F.log_softmax(logits, dim=1)
+        if self.alpha is not None:
+            alpha_weight = targets @ self.alpha
+        else:
+            alpha_weight = 1.0
+        ce = -(targets * log_probs).sum(dim=1)
+        pt = torch.exp(-ce)
+        return (alpha_weight * (1 - pt) ** self.gamma * ce).mean()
 
 
 class OrdinalLoss(nn.Module):
@@ -26,13 +39,11 @@ class OrdinalLoss(nn.Module):
         self.num_classes = num_classes
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        # logits: (B, num_classes-1) — one binary logit per ordinal threshold
-        # targets: (B,) — integer grades 0..4
         B = logits.shape[0]
-        targets = targets.long()
-        # Convert target grade to binary labels for each threshold
-        # e.g. grade 3 -> [1, 1, 1, 0] (is >0? yes, >1? yes, >2? yes, >3? no)
         labels = torch.arange(self.num_classes - 1, device=targets.device).float()
+        if targets.ndim == 2:
+            targets = targets.argmax(dim=1)
+        targets = targets.long()
         extended_targets = targets.float().unsqueeze(1)
         ordinal_labels = (extended_targets > labels).float()
         return F.binary_cross_entropy_with_logits(logits, ordinal_labels)
