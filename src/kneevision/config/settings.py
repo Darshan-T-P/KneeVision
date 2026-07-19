@@ -1,4 +1,8 @@
+import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = PROJECT_ROOT / "data"
@@ -22,3 +26,10 @@ TTA_AUGS = 2
 EARLY_STOP_PATIENCE = 15
 CHECKPOINT_INTERVAL = 5
 MODELS_DIR = PROJECT_ROOT / "models"
+
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", str(PROJECT_ROOT / "mlruns"))
+MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "kneevision")
+MLFLOW_ENABLED = os.getenv("MLFLOW_ENABLED", "true").lower() == "true"
+
+DVC_REMOTE = os.getenv("DVC_REMOTE", "storage")
+DVC_REMOTE_URL = os.getenv("DVC_REMOTE_URL", "/tmp/dvc-storage")
