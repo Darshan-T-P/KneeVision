@@ -63,26 +63,12 @@ src/kneevision/
 - Phase 6 — RAG Rehabilitation System
 - Phase 7b — FastAPI backend + React frontend (production)
 
-## Demo App
-
-Interactive Streamlit showcase — X-ray diagnosis, Grad-CAM/Score-CAM/LIME explainability, clinical text prediction, and model performance:
-
-```bash
-uv run --extra dev streamlit run streamlit_app.py
-```
-
 ## MLflow Tracking & Reports
 
 Every `scripts/evaluate.py` run logs a full evaluation report to MLflow (SQLite, `mlflow.db`):
 - **Metrics:** accuracy, quadratic/linear kappa, macro/weighted F1, per-class precision/recall/F1/AUC
 - **Artifacts:** `report.html` (self-contained), `confusion_matrix.png`, `classification_report.txt`
 - **Model Registry:** single-model runs are registered (e.g. `kneevision_densenet121`, alias `champion`)
-
-Launch the UI:
-```bash
-uv run python scripts/mlflow_server.py server --port 5000
-# open http://localhost:5000
-```
 
 Generate a report standalone (metrics + artifacts, no MLflow):
 ```python
@@ -93,24 +79,82 @@ write_artifacts(labels, preds, probs, out_dir="reports/evaluate")
 ## Setup
 
 ```bash
-uv sync --python 3.14
+uv sync --extra dev --python 3.14
 ```
 
-## Usage
+- `--extra dev` installs pytest, ruff, streamlit, and dvc (needed for tests, linting, and the demo app).
+- Optional: set `HF_TOKEN` to avoid unauthenticated Hugging Face Hub warnings and get faster model downloads:
+  ```bash
+  export HF_TOKEN=hf_your_token
+  ```
+- If `uv sync` ever re-upgrades MLflow and Python 3.14 import errors appear, re-apply the compatibility patch:
+  ```bash
+  uv run python scripts/fix_mlflow_py314.py
+  ```
 
-Train and compare the X-ray classifiers (DenseNet121 & EfficientNet-B4):
+## Commands
+
+All commands run through `uv run` so they use the project's virtualenv. Scripts expect the dataset at `data/raw/{train,val,test}/{kl_grade}/*.png` and checkpoints in `models/`.
+
+### Train
+
+Train the default X-ray model (DenseNet121, train/val):
 ```bash
-python scripts/compare_models.py
+uv run python scripts/train_xray.py
 ```
 
-Evaluate an ensemble of the trained models on the test set:
+Train and compare DenseNet121 vs EfficientNet-B4 (Focal loss, EMA, AMP, logs to MLflow):
 ```bash
-python scripts/evaluate.py
+uv run python scripts/compare_models.py
 ```
 
-Run tests:
+Train the clinical-text model (BioClinicalBERT). Without real reports, generate a synthetic dataset first:
 ```bash
-uv run pytest
+uv run python scripts/train_clinical.py --synthetic --epochs 5
+```
+
+Or train on real report folders (`data/clinical/{train,val}/{kl_grade}/*.txt`):
+```bash
+uv run python scripts/train_clinical.py --data data/clinical --epochs 10
+```
+
+Extra `train_clinical.py` flags: `--image-data <dir>` (KL grades derived from image splits), `--batch-size`, `--lr`, `--freeze` (freeze the encoder), `--num-classes`.
+
+### Evaluate
+
+Evaluate a single model on the test set (registers `kneevision_<name>` in the MLflow Model Registry with alias `champion`):
+```bash
+uv run python scripts/evaluate.py densenet121
+```
+
+Evaluate an ensemble on the test set (logs metrics + artifacts, no registry):
+```bash
+uv run python scripts/evaluate.py densenet121 vit_b_16
+```
+
+Stale/incompatible checkpoints are skipped automatically with a warning. Output includes accuracy, quadratic kappa, per-class precision/recall/F1, and a normalized confusion matrix.
+
+### Demo app
+
+Interactive Streamlit showcase — X-ray diagnosis, Grad-CAM/Score-CAM/LIME explainability, clinical-text prediction, model performance:
+```bash
+uv run --extra dev streamlit run streamlit_app.py
+# open http://localhost:8501
+```
+
+### MLflow UI
+
+View experiment runs, metrics, artifacts, and registered models:
+```bash
+uv run python scripts/mlflow_server.py server --port 5000
+# open http://localhost:5000
+```
+
+### Tests & lint
+
+```bash
+uv run pytest -q     # 35 unit tests
+uv run ruff check src scripts streamlit_app.py tests
 ```
 
 ## Dataset
