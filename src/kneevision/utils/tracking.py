@@ -1,5 +1,6 @@
 import importlib.abc as abc
 import importlib.resources.abc as resources_abc
+from pathlib import Path
 
 if not hasattr(abc, "Traversable"):
     abc.Traversable = resources_abc.Traversable
@@ -8,7 +9,7 @@ import mlflow
 import torch
 from typing import Any
 from kneevision.config.settings import (
-    MLFLOW_TRACKING_URI, MLFLOW_EXPERIMENT_NAME,
+    MLFLOW_TRACKING_URI, MLFLOW_EXPERIMENT_NAME, PROJECT_ROOT,
     BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS, IMAGE_SIZE,
     WEIGHT_DECAY, MAX_GRAD_NORM, LABEL_SMOOTHING, MIXUP_ALPHA,
     SAMPLER_POWER, EARLY_STOP_PATIENCE,
@@ -22,8 +23,25 @@ class MLflowTracker:
     def __init__(self, experiment_name: str | None = None):
         self.experiment_name = experiment_name or MLFLOW_EXPERIMENT_NAME
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-        mlflow.set_experiment(self.experiment_name)
+        experiment = mlflow.set_experiment(self.experiment_name)
+        self._fix_artifact_root(experiment)
         self.active_run = None
+
+    def _fix_artifact_root(self, experiment) -> None:
+        """Point the experiment's artifact store at this machine's mlruns dir.
+
+        Handles DBs created on another machine/path (stale artifact locations).
+        """
+        current_root = Path(PROJECT_ROOT) / "mlruns"
+        current_location = str(current_root / str(experiment.experiment_id))
+        if experiment.artifact_location != current_location:
+            from mlflow.tracking import MlflowClient
+
+            MlflowClient().update_experiment(
+                experiment.experiment_id, new_name=None, artifact_location=current_location
+            )
+            logger.info("Fixed artifact root for experiment %s -> %s",
+                        experiment.name, current_location)
 
     def start_run(self, run_name: str | None = None, tags: dict | None = None):
         self.active_run = mlflow.start_run(run_name=run_name)
@@ -65,6 +83,30 @@ class MLflowTracker:
 
     def log_model(self, model: torch.nn.Module, model_name: str, artifact_path: str = "model"):
         mlflow.pytorch.log_model(model, artifact_path=artifact_path, registered_model_name=model_name)
+
+    def register_model(self, model: torch.nn.Module, model_name: str,
+                       alias: str | None = None, artifact_path: str = "model",
+                       input_example=None):
+        """Log a model and register it in the Model Registry (optionally with an alias).
+
+        Best-effort: registration failures are logged, never raised.
+        """
+        try:
+            mlflow.pytorch.log_model(
+                model,
+                artifact_path=artifact_path,
+                serialization_format="pickle",
+                input_example=input_example,
+            )
+            source = f"runs:/{self.run_id}/{artifact_path}"
+            mv = mlflow.register_model(source, model_name)
+            if alias:
+                from mlflow.tracking import MlflowClient
+
+                MlflowClient().set_registered_model_alias(model_name, alias, mv.version)
+            logger.info("Registered model %s (version %d, alias=%s)", model_name, mv.version, alias or "-")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Model registration skipped for %s: %s", model_name, exc)
 
     def log_artifact(self, local_path: str):
         mlflow.log_artifact(local_path)
