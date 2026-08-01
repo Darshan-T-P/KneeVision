@@ -3,9 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 import time
 
 from kneevision.config.settings import (
@@ -15,8 +13,9 @@ from kneevision.config.settings import (
 )
 from kneevision.models.image_model import KneeXRayClassifier
 from kneevision.data.dataset import KneeXRayDataset, MixUpDataset, make_weighted_sampler
+from kneevision.data.prepare import get_paths_and_labels, class_weights, minority_labels
 from kneevision.data.transforms import train_transform, minority_transform, val_transform
-from kneevision.training.trainer import validate, EMA, EarlyStopping, save_checkpoint, load_checkpoint
+from kneevision.training.trainer import train_epoch, validate, EMA, EarlyStopping, save_checkpoint, load_checkpoint
 from kneevision.training.losses import FocalLoss, OrdinalLoss
 from kneevision.utils.helpers import set_seed, get_device
 from kneevision.utils.logging import setup_logger
@@ -26,19 +25,6 @@ logger = setup_logger("compare_models")
 if MLFLOW_ENABLED:
     from kneevision.utils.tracking import MLflowTracker
     tracker = MLflowTracker()
-
-
-def get_paths_and_labels(split: str):
-    paths, labels = [], []
-    split_dir = RAW_DATA_DIR / split
-    for grade_dir in sorted(split_dir.iterdir()):
-        if not grade_dir.is_dir():
-            continue
-        label = int(grade_dir.name)
-        for img_path in sorted(grade_dir.glob("*.png")):
-            paths.append(img_path)
-            labels.append(label)
-    return paths, labels
 
 
 def run(model_name: str, ordinal: bool = False, resume: bool = False, batch_size: int = BATCH_SIZE):
@@ -63,10 +49,10 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False, batch_size
     device = get_device()
     IS_CUDA = device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda") if IS_CUDA else None
-    train_paths, train_labels = get_paths_and_labels("train")
-    val_paths, val_labels = get_paths_and_labels("val")
+    train_paths, train_labels = get_paths_and_labels(RAW_DATA_DIR / "train")
+    val_paths, val_labels = get_paths_and_labels(RAW_DATA_DIR / "val")
 
-    minority_set = {3, 4}
+    minority_set = minority_labels(train_labels)
 
     train_ds = KneeXRayDataset(
         train_paths, train_labels,
@@ -91,9 +77,8 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False, batch_size
     if ordinal:
         criterion = OrdinalLoss(num_classes=5)
     else:
-        class_counts = torch.tensor([2286, 1046, 1516, 757, 173], dtype=torch.float)
-        class_weights = (1.0 / class_counts) * class_counts.sum() / 5
-        criterion = FocalLoss(alpha=class_weights.to(device), gamma=2.0, label_smoothing=LABEL_SMOOTHING)
+        class_weights_t = torch.tensor(class_weights(train_labels), dtype=torch.float)
+        criterion = FocalLoss(alpha=class_weights_t.to(device), gamma=2.0, label_smoothing=LABEL_SMOOTHING)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
@@ -131,28 +116,10 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False, batch_size
 
     for epoch in range(start_epoch, NUM_EPOCHS + 1):
         epoch_start = time.time()
-        model.train()
-        total_loss = 0.0
-        for images, labels in tqdm(train_loader, desc=f"Epoch {epoch}"):
-            images, labels = images.to(device, non_blocking=True), labels.to(device, non_blocking=True)
-            optimizer.zero_grad()
-            if scaler:
-                with torch.amp.autocast("cuda"):
-                    loss = criterion(model(images), labels)
-                scaler.scale(loss).backward()
-                scaler.unscale_(optimizer)
-                nn.utils.clip_grad_norm_(model.parameters(), MAX_GRAD_NORM)
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                loss = criterion(model(images), labels)
-                loss.backward()
-                nn.utils.clip_grad_norm_(model.parameters(), MAX_GRAD_NORM)
-                optimizer.step()
-            if ema is not None:
-                ema.update(model)
-            total_loss += loss.item()
-        train_loss = total_loss / len(train_loader)
+        train_loss = train_epoch(
+            model, train_loader, criterion, optimizer, device,
+            max_grad_norm=MAX_GRAD_NORM, ema=ema, scaler=scaler,
+        )
         val_loss, val_kappa = validate(model, val_loader, criterion, device, use_kappa=True)
         _, ema_kappa = validate(ema.model, val_loader, criterion, device, use_kappa=True)
         scheduler.step()

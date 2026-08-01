@@ -66,20 +66,29 @@ def train_epoch(
     device: torch.device,
     max_grad_norm: float = 1.0,
     ema: EMA | None = None,
+    scaler: torch.amp.GradScaler | None = None,
 ) -> float:
     model.train()
     total_loss = 0.0
     for images, labels in tqdm(loader, desc="Training"):
-        images, labels = images.to(device), labels.to(device)
+        images, labels = images.to(device, non_blocking=True), labels.to(device, non_blocking=True)
 
         optimizer.zero_grad()
-        logits = model(images)
-        loss = criterion(logits, labels)
+        with torch.autocast("cuda", enabled=scaler is not None):
+            loss = criterion(model(images), labels)
 
-        loss.backward()
-        if max_grad_norm > 0:
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-        optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            if max_grad_norm > 0:
+                nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+            optimizer.step()
+
         if ema is not None:
             ema.update(model)
         total_loss += loss.item()

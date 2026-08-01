@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from kneevision.config.settings import RAW_DATA_DIR, BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS
 from kneevision.models.image_model import KneeXRayClassifier
 from kneevision.data.dataset import KneeXRayDataset
+from kneevision.data.prepare import get_paths_and_labels, class_weights
 from kneevision.data.transforms import train_transform, val_transform
 from kneevision.training.trainer import train_epoch, validate
 from kneevision.utils.helpers import set_seed, get_device
@@ -17,26 +18,13 @@ from kneevision.utils.logging import setup_logger
 logger = setup_logger("train_xray")
 
 
-def get_paths_and_labels(split: str) -> tuple[list[Path], list[int]]:
-    paths, labels = [], []
-    split_dir = RAW_DATA_DIR / split
-    for grade_dir in sorted(split_dir.iterdir()):
-        if not grade_dir.is_dir():
-            continue
-        label = int(grade_dir.name)
-        for img_path in sorted(grade_dir.glob("*.png")):
-            paths.append(img_path)
-            labels.append(label)
-    return paths, labels
-
-
 def main():
     set_seed(42)
     device = get_device()
     logger.info("Device: %s", device)
 
-    train_paths, train_labels = get_paths_and_labels("train")
-    val_paths, val_labels = get_paths_and_labels("val")
+    train_paths, train_labels = get_paths_and_labels(RAW_DATA_DIR / "train")
+    val_paths, val_labels = get_paths_and_labels(RAW_DATA_DIR / "val")
 
     logger.info("Train: %d images", len(train_paths))
     logger.info("Val:   %d images", len(val_paths))
@@ -49,9 +37,8 @@ def main():
 
     model = KneeXRayClassifier("densenet121", 5).to(device)
 
-    class_counts = torch.tensor([2286, 1046, 1516, 757, 173], dtype=torch.float)
-    class_weights = (1.0 / class_counts) * class_counts.sum() / 5
-    criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
+    weights = torch.tensor(class_weights(train_labels), dtype=torch.float)
+    criterion = nn.CrossEntropyLoss(weight=weights.to(device))
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)

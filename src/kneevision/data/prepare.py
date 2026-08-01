@@ -2,25 +2,58 @@ from pathlib import Path
 import csv
 import random
 
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp"}
 
-def prepare_from_folders(raw_dir: Path) -> dict[str, tuple[list[Path], list[int]]]:
-    """Load dataset organized as: raw_dir/{split}/{kl_grade}/*.png"""
+
+def get_paths_and_labels(split_dir: Path) -> tuple[list[Path], list[int]]:
+    """Load a split organized as: split_dir/{kl_grade}/*.png"""
+    paths, labels = [], []
+    for grade_dir in sorted(split_dir.iterdir()):
+        if not grade_dir.is_dir():
+            continue
+        label = int(grade_dir.name)
+        for img_path in sorted(grade_dir.glob("*.*")):
+            if img_path.suffix.lower() in IMAGE_EXTENSIONS:
+                paths.append(img_path)
+                labels.append(label)
+    return paths, labels
+
+
+def get_splits(raw_dir: Path) -> dict[str, tuple[list[Path], list[int]]]:
+    """Load all splits (train/val/test) from raw_dir/{split}/{kl_grade}/."""
     splits = {}
     for split in ["train", "val", "test"]:
         split_dir = raw_dir / split
-        if not split_dir.exists():
-            continue
-        paths, labels = [], []
-        for grade_dir in sorted(split_dir.iterdir()):
-            if not grade_dir.is_dir():
-                continue
-            label = int(grade_dir.name)
-            for img_path in sorted(grade_dir.glob("*.*")):
-                if img_path.suffix.lower() in {".png", ".jpg", ".jpeg", ".bmp"}:
-                    paths.append(img_path)
-                    labels.append(label)
-        splits[split] = (paths, labels)
+        if split_dir.exists():
+            splits[split] = get_paths_and_labels(split_dir)
     return splits
+
+
+def class_distribution(labels: list[int], num_classes: int = 5) -> list[int]:
+    """Count label frequencies, returning a fixed-length list."""
+    counts = [0] * num_classes
+    for label in labels:
+        counts[label] += 1
+    return counts
+
+
+def class_weights(labels: list[int], num_classes: int = 5) -> list[float]:
+    """Inverse-frequency class weights normalized to sum to num_classes."""
+    counts = class_distribution(labels, num_classes)
+    total = sum(counts)
+    return [(total / (c * num_classes)) if c > 0 else 0.0 for c in counts]
+
+
+def minority_labels(labels: list[int], num_classes: int = 5, threshold: float = 0.4) -> set[int]:
+    """Classes whose frequency is below `threshold * max_count` (data-driven)."""
+    counts = class_distribution(labels, num_classes)
+    max_count = max(counts)
+    return {i for i, c in enumerate(counts) if c < threshold * max_count}
+
+
+def prepare_from_folders(raw_dir: Path) -> dict[str, tuple[list[Path], list[int]]]:
+    """Load dataset organized as: raw_dir/{split}/{kl_grade}/*.png"""
+    return get_splits(raw_dir)
 
 
 def prepare_from_csv(csv_path: Path, image_root: Path) -> dict[str, tuple[list[Path], list[int]]]:
