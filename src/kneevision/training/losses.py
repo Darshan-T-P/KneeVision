@@ -53,3 +53,13 @@ def ordinal_to_class(logits: torch.Tensor) -> torch.Tensor:
     Sum of binary predictions = predicted grade."""
     probs = torch.sigmoid(logits)
     return probs.round().sum(dim=1).long()
+
+
+def ordinal_to_probs(logits: torch.Tensor) -> torch.Tensor:
+    """Convert ordinal logits to a proper probability distribution over grades 0..K-1.
+
+    P(grade = k) = P(grade >= k) - P(grade >= k + 1), where P(grade >= k) = sigmoid(logits_k).
+    """
+    probs = torch.sigmoid(logits)
+    boundaries = torch.cat([torch.ones_like(probs[:, :1]), probs, torch.zeros_like(probs[:, :1])], dim=1)
+    return boundaries[:, :-1] - boundaries[:, 1:]
