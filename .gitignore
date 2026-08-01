@@ -35,3 +35,6 @@ runs/
 venv/
 .vscode/
 wandb/
+# Generated artifacts
+reports/
+data/clinical/synthetic/
