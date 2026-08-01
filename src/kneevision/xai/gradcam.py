@@ -23,12 +23,14 @@ class GradCAM:
             self.gradients = grad_output[0]
 
         module.register_forward_hook(forward_hook)
-        module.register_backward_hook(backward_hook)
+        module.register_full_backward_hook(backward_hook)
 
     def generate(self, x: torch.Tensor, class_idx: int | None = None) -> np.ndarray:
         logits = self.model(x)
         if class_idx is None:
             class_idx = logits.argmax(dim=1).item()
+        # Ordinal heads emit num_classes - 1 logits; clamp the target index.
+        class_idx = min(class_idx, logits.shape[1] - 1)
 
         self.model.zero_grad()
         logits[0, class_idx].backward()
