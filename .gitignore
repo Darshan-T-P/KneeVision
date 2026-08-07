@@ -38,3 +38,6 @@ wandb/
 # Generated artifacts
 reports/
 data/clinical/synthetic/
+data/oai/raw/
+data/oai/processed/
+data/oai/reports/

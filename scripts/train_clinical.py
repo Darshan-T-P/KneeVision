@@ -19,7 +19,7 @@ from kneevision.clinical.prepare import (
     load_reports_from_folders, load_reports_csv,
     build_synthetic_splits,
 )
-from kneevision.data.prepare import get_splits
+from kneevision.data.prepare import get_splits, class_weights
 from kneevision.utils.helpers import set_seed, get_device
 from kneevision.utils.logging import setup_logger
 from kneevision.training.losses import FocalLoss
@@ -111,7 +111,9 @@ def main():
                                  batch_size=args.batch_size, num_workers=0)
 
     model = ClinicalTextModel(num_classes=args.num_classes, freeze_encoder=args.freeze).to(device)
-    criterion = FocalLoss(gamma=2.0, label_smoothing=0.1)
+    alpha = torch.tensor(class_weights(train_labels, num_classes=args.num_classes),
+                         dtype=torch.float).to(device)
+    criterion = FocalLoss(alpha=alpha, gamma=2.0, label_smoothing=0.1)
     optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=args.lr)
 
     best_kappa = -1.0

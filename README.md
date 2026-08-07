@@ -53,7 +53,9 @@ src/kneevision/
 - Report loaders for `{split}/{kl}/*.txt` folders and CSVs
 - Synthetic radiology report generator (fallback until real reports are available)
 - `scripts/train_clinical.py` — training with Focal loss, early-stop on kappa, MLflow tracking
-- **Data sources:** OAI (X-rays + clinical scores, https://nda.nih.gov/oai) and expert-annotated OAI radiology reports (IEEE DataPort, DOI 10.21227/vcpg-qm58)
+- **Data sources:**
+  - **OAI (primary, free)** — clinical data + gold-standard KL grades, via NIMH Data Archive (NDA) registration. `scripts/download_oai.py` ingests the downloaded tables into the training format. See `data/oai/README.md`.
+  - Expert-annotated OAI radiology reports (IEEE DataPort, DOI 10.21227/vcpg-qm58, subscription required) — for real narrative report text.
 
 ### Phase 7 — Demo App (Streamlit) ✅
 - `streamlit_app.py` — interactive showcase: X-ray KL prediction with confidence chart, Grad-CAM / Score-CAM / LIME heatmaps, BioClinicalBERT clinical-text prediction, model performance dashboard
@@ -119,6 +121,16 @@ uv run python scripts/train_clinical.py --data data/clinical --epochs 10
 ```
 
 Extra `train_clinical.py` flags: `--image-data <dir>` (KL grades derived from image splits), `--batch-size`, `--lr`, `--freeze` (freeze the encoder), `--num-classes`.
+
+### OAI clinical dataset (NDA)
+
+Real clinical data (KL-grade labels + demographics/WOMAC) from the Osteoarthritis Initiative. Access is free but requires NDA registration/approval — full steps in `data/oai/README.md`:
+
+```bash
+uv run python scripts/download_oai.py status              # access steps + which raw files are present
+uv run python scripts/download_oai.py ingest              # build dataset (after files are in data/oai/raw/)
+uv run python scripts/train_clinical.py --data data/oai/processed/oai_clinical.csv --epochs 10
+```
 
 ### Evaluate
 

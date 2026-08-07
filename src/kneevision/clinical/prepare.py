@@ -111,6 +111,56 @@ def generate_synthetic_dataset(labels: list[int], out_dir: Path, seed: int = 42)
     return written
 
 
+def compose_clinical_report(features: dict, side: str = "right") -> str:
+    """Compose a structured clinical summary from OAI-style baseline features.
+
+    `features` may contain: age, sex, bmi and WOMAC 0-100 symptom items
+    `pain`, `stiffness`, `function` (or a legacy `womac_total`). The KL grade
+    is deliberately NOT included in the text: it is the label the model must
+    predict, and embedding it would leak the answer. Missing fields are simply
+    omitted from the summary.
+    """
+    def _fmt(value):
+        if value is None:
+            return None
+        try:
+            return f"{float(value):g}"
+        except (TypeError, ValueError):
+            return str(value)
+
+    age, sex, bmi = (features.get(k) for k in ("age", "sex", "bmi"))
+
+    parts = [f"Baseline clinical assessment of the {side} knee."]
+    demos = []
+    if age is not None:
+        demos.append(f"{_fmt(age)} years old")
+    if sex:
+        demos.append(str(sex))
+    if bmi is not None:
+        demos.append(f"BMI {_fmt(bmi)}")
+    if demos:
+        parts.append("Patient is " + ", ".join(demos) + ".")
+
+    symptoms = []
+    if "womac_total" in features and features["womac_total"] is not None:
+        symptoms.append(("overall WOMAC", features["womac_total"]))
+    for label, key in (("pain", "pain"), ("stiffness", "stiffness"), ("function", "function")):
+        if features.get(key) is not None:
+            symptoms.append((f"WOMAC {label}", features[key]))
+
+    for label, value in symptoms:
+        try:
+            score = float(value)
+            severity = "minimal" if score < 24 else "mild to moderate" if score < 48 else "substantial"
+        except (TypeError, ValueError):
+            score, severity = value, "reported"
+        parts.append(
+            f"Patient-reported {label} score is {_fmt(score)} of 100, "
+            f"indicating {severity} {label.split()[-1]}."
+        )
+    return " ".join(parts)
+
+
 def load_reports_from_grades(root: Path) -> tuple[list[str], list[int]]:
     """Load reports organized as: root/{kl_grade}/*.txt (no split subdirectory)."""
     texts, labels = [], []
