@@ -13,7 +13,8 @@ class ClinicalTextModel(nn.Module):
     """
 
     def __init__(self, model_name: str = CLINICAL_MODEL_NAME, num_classes: int = 5,
-                 freeze_encoder: bool = False, max_length: int = CLINICAL_MAX_LENGTH):
+                 freeze_encoder: bool = False, max_length: int = CLINICAL_MAX_LENGTH,
+                 ordinal: bool = False):
         super().__init__()
         self.model_name = model_name
         self.max_length = max_length
@@ -25,8 +26,10 @@ class ClinicalTextModel(nn.Module):
             for param in self.encoder.parameters():
                 param.requires_grad_(False)
 
+        self.ordinal = ordinal
         self.dropout = nn.Dropout(0.3)
-        self.classifier = nn.Linear(self.hidden_dim, num_classes)
+        out_features = num_classes - 1 if ordinal else num_classes
+        self.classifier = nn.Linear(self.hidden_dim, out_features)
 
     def _encode(self, texts: list[str], device: torch.device) -> dict[str, torch.Tensor]:
         encoding = self.tokenizer(
@@ -52,7 +55,14 @@ class ClinicalTextModel(nn.Module):
         self.eval()
         encoding = self._encode(texts, device)
         logits = self(input_ids=encoding["input_ids"], attention_mask=encoding["attention_mask"])
-        probs = torch.softmax(logits, dim=1)
-        preds = logits.argmax(dim=1).cpu().tolist()
+        
+        if self.ordinal:
+            from kneevision.training.losses import ordinal_to_class, ordinal_to_probs
+            probs = ordinal_to_probs(logits)
+            preds = ordinal_to_class(logits).cpu().tolist()
+        else:
+            probs = torch.softmax(logits, dim=1)
+            preds = logits.argmax(dim=1).cpu().tolist()
+            
         confidences = probs.max(dim=1).values.cpu().tolist()
         return preds, confidences

@@ -28,6 +28,8 @@ mlruns/
 notebooks/.ipynb_checkpoints/
 *.pt
 *.pth
+models/
+*.zip
 __pycache__/
 *.py[cod]
 runs/
@@ -41,3 +43,4 @@ data/clinical/synthetic/
 data/oai/raw/
 data/oai/processed/
 data/oai/reports/
+/models

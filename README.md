@@ -124,7 +124,17 @@ Extra `train_clinical.py` flags: `--image-data <dir>` (KL grades derived from im
 
 ### OAI clinical dataset (NDA)
 
-Real clinical data (KL-grade labels + demographics/WOMAC) from the Osteoarthritis Initiative. Access is free but requires NDA registration/approval — full steps in `data/oai/README.md`:
+Real clinical data (KL-grade labels + demographics/WOMAC) from the Osteoarthritis
+Initiative — ingested and ready at `data/oai/processed/oai_clinical.csv`:
+
+| Split | KL 0 | KL 1 | KL 2 | KL 3 | KL 4 | Total |
+|-------|-----:|-----:|-----:|-----:|-----:|------:|
+| train | 5,599 | 2,494 | 2,190 | 1,061 | 230 | 11,574 |
+| val   | 1,273 |   558 |   480 |   196 |  33 |  2,540 |
+| test  | 1,213 |   523 |   482 |   209 |  51 |  2,478 |
+
+Subjects are never split across train/val/test. Access is free but requires NDA
+registration/approval — full steps in `data/oai/README.md`:
 
 ```bash
 uv run python scripts/download_oai.py status              # access steps + which raw files are present
@@ -171,5 +181,27 @@ uv run ruff check src scripts streamlit_app.py tests
 
 ## Dataset
 
-- **Kaggle Knee Osteoarthritis Dataset** — 8,260 knee X-rays with KL grades 0-4
-- Split: train (5,778), val (826), test (1,656)
+**Kaggle Knee Osteoarthritis Dataset** — 8,260 knee X-rays with KL grades 0–4
+(source zip: `data/archive.zip`, extracted to `data/raw/{train,val,test}/{kl_grade}/*.png`;
+an extra auto-labeled `auto_test/` folder in the zip is not used).
+
+Split (verified on disk):
+
+| Split | KL 0 | KL 1 | KL 2 | KL 3 | KL 4 | Total |
+|-------|-----:|-----:|-----:|-----:|-----:|------:|
+| train | 2,286 | 1,046 | 1,516 | 757 | 173 | 5,778 |
+| val   |   328 |   153 |   212 | 106 |  27 |   826 |
+| test  |   639 |   296 |   447 | 223 |  51 | 1,656 |
+
+The dataset is imbalanced (KL4 ≈ 3% of training images); this is handled at
+training time, not by offline oversampling — no augmented copies are stored on disk.
+
+## Augmentation (on-the-fly only)
+
+Applied per-batch during training via `src/kneevision/data/transforms.py` and `dataset.py`:
+
+- **Standard train pipeline** (`train_transform`): resize 256 → RandomResizedCrop(224, scale 0.8–1.0) → horizontal flip p=0.5 → rotation ±15° → brightness/contrast jitter ±0.2 → RandAugment (2 ops, magnitude 9) → random translate ±5% → sharpness p=0.3 → Gaussian blur → RandomErasing p=0.25 → ImageNet normalize.
+- **Minority-class pipeline** (`minority_transform`): stronger version applied to under-represented grades (auto-detected as < 40% of the largest class — currently KL3/KL4): larger crop jitter (0.7–1.0), rotation ±25°, stronger color jitter, affine with shear/scale, blur up to σ=1.0.
+- **MixUp / CutMix** (`MixUpDataset`, α=0.4): 50% of samples get either beta-mixed pixels or a 10–30% cut-paste patch, labels become soft one-hots.
+- **Class-balanced sampling** (`make_weighted_sampler`, power=0.5): inverse-sqrt-frequency weighted sampler so rare grades are seen more often per epoch.
+- **Val/test**: deterministic resize 224 + normalize only. **TTA**: base + horizontal flip (`TTA_AUGS = 2`).

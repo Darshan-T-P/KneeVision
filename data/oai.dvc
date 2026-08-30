@@ -1,0 +1,6 @@
+outs:
+- md5: 7014cb8ef0374e0f2587bcfe6001218c.dir
+  size: 505287444
+  nfiles: 9260
+  hash: md5
+  path: oai

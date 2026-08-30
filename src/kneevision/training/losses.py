@@ -34,9 +34,10 @@ class OrdinalLoss(nn.Module):
     """CORAL (Consistent Rank Logits) loss for ordinal regression.
     Treats KL grades as ordered: 0 < 1 < 2 < 3 < 4.
     Predicts 4 binary tasks: is grade > 0? > 1? > 2? > 3?"""
-    def __init__(self, num_classes: int = 5):
+    def __init__(self, num_classes: int = 5, alpha: torch.Tensor | None = None):
         super().__init__()
         self.num_classes = num_classes
+        self.alpha = alpha
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         labels = torch.arange(self.num_classes - 1, device=targets.device).float()
@@ -45,7 +46,12 @@ class OrdinalLoss(nn.Module):
         targets = targets.long()
         extended_targets = targets.float().unsqueeze(1)
         ordinal_labels = (extended_targets > labels).float()
-        return F.binary_cross_entropy_with_logits(logits, ordinal_labels)
+        
+        loss = F.binary_cross_entropy_with_logits(logits, ordinal_labels, reduction="none")
+        if self.alpha is not None:
+            weights = self.alpha[targets].unsqueeze(1)
+            loss = loss * weights
+        return loss.mean()
 
 
 def ordinal_to_class(logits: torch.Tensor) -> torch.Tensor:

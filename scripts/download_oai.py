@@ -71,6 +71,11 @@ DEFAULT_COLS = {
     "pain": ["V00WOMKPR", "V00WOMKPE", "P04WOMKPR", "WOMACPAIN"],
     "stiffness": ["V00WOMSTFR", "V00WOMSTFE", "P04WOMSTFR", "WOMACSTIFF"],
     "function": ["V00WOMADLR", "V00WOMADLE", "P04WOMADLR", "WOMACFUNC"],
+    "injury_r": ["P01INJR"],
+    "injury_l": ["P01INJL"],
+    "surgery_r": ["P01KSURGR"],
+    "surgery_l": ["P01KSURGL"],
+    "meds": ["P01KPMED"],
 }
 
 _ACCESS_STEPS = """\
@@ -194,7 +199,7 @@ def build_dataset(raw_dir: Path, out_csv: Path, out_reports: Path,
             f"Header: {kxr_header}\nPass correct names via --id/--side/--kl."
         )
 
-    clin_idx = {f: resolve(f, clin_header) for f in ("age", "sex", "bmi", "pain", "stiffness", "function")}
+    clin_idx = {f: resolve(f, clin_header) for f in ("age", "sex", "bmi", "pain", "stiffness", "function", "injury_r", "injury_l", "surgery_r", "surgery_l", "meds")}
     if clin_idx["age"] is None:
         raise ValueError(
             f"Could not find an 'age' column in AllClinical00. Header: {clin_header}"
@@ -235,6 +240,9 @@ def build_dataset(raw_dir: Path, out_csv: Path, out_reports: Path,
             "pain": _num(clinical.get("pain")),
             "stiffness": _num(clinical.get("stiffness")),
             "function": _num(clinical.get("function")),
+            "injury": clinical.get("injury_r") if side == "right" else clinical.get("injury_l"),
+            "surgery": clinical.get("surgery_r") if side == "right" else clinical.get("surgery_l"),
+            "meds": clinical.get("meds"),
         }
         records.append({"id": pid, "side": side, "kl_grade": kl, "features": features})
 
@@ -251,14 +259,16 @@ def build_dataset(raw_dir: Path, out_csv: Path, out_reports: Path,
     with open(out_csv, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["id", "side", "split", "kl_grade", "report",
-                         "age", "sex", "bmi", "pain", "stiffness", "function"])
+                         "age", "sex", "bmi", "pain", "stiffness", "function",
+                         "injury", "surgery", "meds"])
         for r in sorted(records, key=lambda r: (r["id"], r["side"])):
             f_ = r["features"]
             writer.writerow([r["id"], r["side"], split_of_id[r["id"]], r["kl_grade"],
                              compose_clinical_report(f_, side=r["side"]),
                              f_.get("age") or "", f_.get("sex") or "",
                              f_.get("bmi") or "", f_.get("pain") or "",
-                             f_.get("stiffness") or "", f_.get("function") or ""])
+                             f_.get("stiffness") or "", f_.get("function") or "",
+                             f_.get("injury") or "", f_.get("surgery") or "", f_.get("meds") or ""])
 
     written = 0
     for r in records:

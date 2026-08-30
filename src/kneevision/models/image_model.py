@@ -47,11 +47,22 @@ class BackboneSpec:
         backbone = self.factory(weights=self.weights)
         if self.in_features_attr is not None:
             in_features = getattr(backbone, self.in_features_attr)
+            setattr(backbone, self.head_attr, nn.Identity())
         else:
             head = getattr(backbone, self.head_attr)
-            layer = head[self.head_index] if self.head_index is not None else head
-            in_features = layer.in_features
-        setattr(backbone, self.head_attr, nn.Identity())
+            if self.head_index is None:
+                # Head is a bare Linear (e.g. DenseNet/EfficientNet/Swin);
+                # their forwards already flatten, so Identity is safe.
+                in_features = head.in_features
+                setattr(backbone, self.head_attr, nn.Identity())
+            else:
+                # Head is Sequential(norm..., flatten, linear) (e.g. ConvNeXt).
+                # Keep the norm/flatten layers, drop only the final linear(s),
+                # otherwise the custom head receives a 4-D feature map.
+                layers = list(head.children())
+                in_features = layers[self.head_index].in_features
+                replacement = layers[:self.head_index] or [nn.Flatten(start_dim=1)]
+                setattr(backbone, self.head_attr, nn.Sequential(*replacement))
         return backbone, in_features
 
 
