@@ -288,13 +288,34 @@ def load_clinical_model():
 
     trained = MODELS_DIR / "best_clinical.pt"
     try:
-        model = ClinicalTextModel(num_classes=5).to(device)
         if trained.exists():
-            model.load_state_dict(torch.load(trained, map_location=device, weights_only=True))
+            state = torch.load(trained, map_location=device, weights_only=True)
+            # Auto-detect ordinal: if classifier out_features == 4 (for 5 classes), ordinal=True
+            out_features = state["classifier.weight"].shape[0]
+            is_ordinal = (out_features == 4)
+            model = ClinicalTextModel(num_classes=5, ordinal=is_ordinal).to(device)
+            model.load_state_dict(state)
             return model, True
+        model = ClinicalTextModel(num_classes=5, ordinal=False).to(device)
         return model, False
     except Exception:
         return None, False
+
+
+@st.cache_resource(show_spinner="Loading multimodal fusion model...")
+def load_fusion_model():
+    device = get_device()
+    from kneevision.fusion import load_trained_fusion_model
+
+    trained = MODELS_DIR / "best_fusion.pt"
+    try:
+        if trained.exists():
+            model = load_trained_fusion_model(trained, device, num_classes=5)
+            return model, True
+        return None, False
+    except Exception:
+        return None, False
+
 
 
 @torch.inference_mode()
@@ -323,6 +344,9 @@ def image_probs(image: Image.Image, models: list, device) -> np.ndarray:
 def clinical_probs(model, text: str, device) -> np.ndarray:
     enc = model._encode([text], device)
     logits = model(enc["input_ids"], enc["attention_mask"])
+    if getattr(model, "ordinal", False):
+        from kneevision.training.losses import ordinal_to_probs
+        return ordinal_to_probs(logits).squeeze(0).cpu().numpy()
     return torch.softmax(logits, dim=1).squeeze(0).cpu().numpy()
 
 
@@ -515,36 +539,103 @@ def page_clinical(device):
 
 
 def page_fusion(device, image_models):
-    st.subheader("🔀 Multimodal Fusion Demo")
-    st.caption("Combine what the CNN sees in the X-ray with what BioClinicalBERT reads in the report.")
+    st.subheader("🔀 Multimodal Fusion")
+    st.caption("Jointly analyze knee radiographs and patient clinical reports through Deep Neural Fusion.")
 
     clinical_model, clinical_trained = load_clinical_model()
+    fusion_model, fusion_trained = load_fusion_model()
     fusion_flow_diagram()
     st.write("")
 
+    preset_choice = st.selectbox(
+        "⚡ Quick Preset Cases",
+        [
+            "-- Manual Input (Upload / Paste) --",
+            "Case 1: Normal Knee (KL 0) · Preserved Joint Spaces",
+            "Case 2: Doubtful / Early Changes (KL 1) · Minimal Joint Space Narrowing",
+            "Case 3: Mild Osteoarthritis (KL 2) · Definite Osteophytes & Subtle Narrowing",
+            "Case 4: Moderate Osteoarthritis (KL 3) · Definite Narrowing & Sclerosis",
+            "Case 5: Severe Osteoarthritis (KL 4) · Bone-on-Bone Joint Collapse",
+        ],
+        index=0,
+    )
+
+    preset_img_path = None
+    preset_report_text = ""
+    demo_dict = demo_images()
+    if "KL 0" in preset_choice:
+        preset_img_path = demo_dict.get(0)
+        preset_report_text = DEMO_REPORTS[0]
+    elif "KL 1" in preset_choice:
+        preset_img_path = demo_dict.get(1)
+        preset_report_text = DEMO_REPORTS[1]
+    elif "KL 2" in preset_choice:
+        preset_img_path = demo_dict.get(2)
+        preset_report_text = DEMO_REPORTS[2]
+    elif "KL 3" in preset_choice:
+        preset_img_path = demo_dict.get(3)
+        preset_report_text = DEMO_REPORTS[3]
+    elif "KL 4" in preset_choice:
+        preset_img_path = demo_dict.get(4)
+        preset_report_text = DEMO_REPORTS[4]
+
     col_img, col_txt = st.columns(2)
     with col_img:
-        up = st.file_uploader("1 · Upload knee X-ray", type=["png", "jpg", "jpeg", "bmp"], key="fusion_img")
+        up = st.file_uploader("1 · Knee X-ray (AP view)", type=["png", "jpg", "jpeg", "bmp"], key="fusion_img")
+        if up is not None:
+            active_img = Image.open(up).convert("RGB")
+            st.image(active_img, caption="Active X-ray Image", width=240)
+        elif preset_img_path:
+            active_img = Image.open(preset_img_path).convert("RGB")
+            st.image(active_img, caption="Preset Demo Image", width=240)
+        else:
+            active_img = None
+
     with col_txt:
-        report = st.text_area("2 · Paste radiology report",
-                              placeholder="FINDINGS: ... IMPRESSION: ...", height=140)
+        report = st.text_area(
+            "2 · Clinical / Radiology Report",
+            value=preset_report_text,
+            placeholder="FINDINGS: ... IMPRESSION: ...",
+            height=180,
+        )
 
-    alpha = st.slider("Fusion weight α (text influence)", 0.0, 1.0, 0.5, 0.05,
-                      help="0 = image only, 1 = text only")
+    mode_col, slider_col = st.columns([1.6, 1])
+    with mode_col:
+        fusion_mode = st.radio(
+            "Fusion Mechanism",
+            ["🧠 Deep Neural Fusion (Trained Multimodal Head)", "🎚️ Dynamic Heuristic Blend (α slider)"],
+            horizontal=True,
+            help="Deep Neural Fusion feeds visual & textual embeddings through the trained late fusion network.",
+        )
 
-    ready_img = up is not None
+    alpha = 0.5
+    if "Dynamic" in fusion_mode:
+        with slider_col:
+            alpha = st.slider("Fusion weight α (text influence)", 0.0, 1.0, 0.5, 0.05,
+                              help="0 = image only, 1 = text only")
+
+    ready_img = active_img is not None
     ready_txt = bool(report.strip()) and clinical_model is not None
-    if st.button("Run fusion", type="primary", disabled=not (ready_img or ready_txt)):
+
+    if st.button("Run Multimodal Diagnosis", type="primary", disabled=not (ready_img or ready_txt)):
         img_p = txt_p = None
         if ready_img:
-            img_p = image_probs(Image.open(up).convert("RGB"), list(image_models.values()), device)
+            img_p = image_probs(active_img, list(image_models.values()), device)
         if ready_txt:
             txt_p = clinical_probs(clinical_model, report, device)
 
-        if img_p is not None and txt_p is not None:
+        if "Deep Neural" in fusion_mode and fusion_model is not None and ready_img and ready_txt:
+            _, _, fused = fusion_model.predict(active_img, report, device)
+            badge_title = "🧠 Deep Neural Fusion"
+            badge_color = "#0f766e"
+        elif img_p is not None and txt_p is not None:
             fused = (1 - alpha) * img_p + alpha * txt_p
+            badge_title = f"⊕ Heuristic Blend (α={alpha:.2f})"
+            badge_color = "#b45309"
         else:
             fused = img_p if img_p is not None else txt_p
+            badge_title = "Single Modality Active"
+            badge_color = "#0369a1"
 
         ipred = int(img_p.argmax()) if img_p is not None else None
         tpred = int(txt_p.argmax()) if txt_p is not None else None
@@ -552,30 +643,34 @@ def page_fusion(device, image_models):
 
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.markdown(grade_card("🩻 Image says", ipred, float(img_p[ipred]) if ipred is not None else None, "#0f766e"),
+            st.markdown(grade_card("🩻 Image CNN Branch", ipred, float(img_p[ipred]) if ipred is not None else None, "#0284c7"),
                         unsafe_allow_html=True)
         with c2:
-            st.markdown(grade_card("📝 Text says", tpred, float(txt_p[tpred]) if tpred is not None else None, "#7c3aed"),
+            st.markdown(grade_card("📝 Clinical BERT Branch", tpred, float(txt_p[tpred]) if tpred is not None else None, "#7c3aed"),
                         unsafe_allow_html=True)
         with c3:
-            st.markdown(grade_card("⊕ Fused decision", fpred, fconf, "#b45309"), unsafe_allow_html=True)
+            st.markdown(grade_card(badge_title, fpred, fconf, badge_color), unsafe_allow_html=True)
 
-        st.bar_chart(pd.DataFrame({
-            "Image": img_p if img_p is not None else np.zeros(5),
-            "Text": txt_p if txt_p is not None else np.zeros(5),
-            "Fused": fused,
-        }, index=[f"G{i}" for i in range(5)]), height=280)
+        st.markdown("##### 📊 Comparative Probability Distribution across Modalities")
+        chart_data = {
+            "Image CNN": img_p if img_p is not None else np.zeros(5),
+            "Clinical BERT": txt_p if txt_p is not None else np.zeros(5),
+            "Multimodal Decision": fused,
+        }
+        st.bar_chart(pd.DataFrame(chart_data, index=[f"KL {i} ({KL_LABELS[i]})" for i in range(5)]), height=300)
 
-        if not clinical_trained:
-            st.caption("Note: the text branch is untrained (random weights) — treat its output as a shape demo only.")
+        if "Deep Neural" in fusion_mode and not fusion_trained:
+            st.warning("`models/best_fusion.pt` was not detected. Train via `scripts/train_fusion.py` to enable trained neural weights.")
     elif not ready_img and not ready_txt:
-        st.info("Provide an X-ray and/or a report to run the fusion.")
+        st.info("Provide a Knee X-ray and/or clinical report above to run multimodal evaluation.")
 
 
 def page_performance():
     st.subheader("📊 Model Performance")
     st.caption("All numbers read live from models/ metadata, reports/, and mlflow.db.")
-    perf_5c, perf_bin, perf_grp = st.tabs(["5-Class Grading", "Binary OA Detection", "Grouped Evaluation"])
+    perf_5c, perf_fusion, perf_bin, perf_grp = st.tabs([
+        "5-Class Grading", "Multimodal Fusion", "Binary OA Detection", "Grouped Evaluation"
+    ])
 
     with perf_5c:
         left, right = st.columns([1, 1])
@@ -594,6 +689,23 @@ def page_performance():
         with right:
             st.markdown("**Classification report — test set**")
             st.text(report_text("evaluate"))
+
+    with perf_fusion:
+        fleft, fright = st.columns([1.1, 0.9])
+        with fleft:
+            st.markdown("**Modality Comparison (Image vs Clinical Text vs Fusion)**")
+            comp_img = REPORTS_DIR / "evaluate_fusion" / "modality_comparison.png"
+            if comp_img.exists():
+                st.image(str(comp_img), caption="Modality Benchmark Comparison", width="stretch")
+            else:
+                st.info("Run `uv run python scripts/evaluate_fusion.py` to generate fusion benchmark charts.")
+
+        with fright:
+            st.markdown("**Multimodal Classification Report**")
+            st.text(report_text("evaluate_fusion"))
+            cm_fusion = report_image("evaluate_fusion")
+            if cm_fusion:
+                st.image(cm_fusion, caption="Multimodal Fusion Confusion Matrix", width="stretch")
 
     with perf_bin:
         left, right = st.columns([1, 1])
