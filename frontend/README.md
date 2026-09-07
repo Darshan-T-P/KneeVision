@@ -1,16 +1,42 @@
-# React + Vite
+# KneeVision++ Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A Vite + React single-page app for the KneeVision++ REST API (Phase 7b) — a decoupled
+alternative to the Streamlit demo (`../streamlit_app.py`), talking to the same models
+over HTTP instead of loading them in-process.
 
-Currently, two official plugins are available:
+## Pages
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **🩻 X-ray Diagnosis** — upload a knee X-ray, get a KL 0-4 prediction and a
+  Grad-CAM / Score-CAM / LIME heatmap.
+- **📝 Clinical Text** — paste a radiology report / findings, get a KL 0-4
+  prediction from BioClinicalBERT.
+- **🔀 Fusion** — upload an X-ray + optional report, see the image branch,
+  clinical branch, and fused decision side by side.
+- **🏃 Rehab** — retrieval-augmented rehab guidance for a KL grade (see the
+  main README's Phase 6 section).
 
-## React Compiler
+## Run
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Start the API first (from the project root):
 
-## Expanding the Oxlint configuration
+```bash
+uv run uvicorn kneevision.api.main:app --reload --port 8000 --app-dir src
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Then, in this directory:
+
+```bash
+npm install
+npm run dev       # http://localhost:5173
+```
+
+The API base URL defaults to `http://localhost:8000`; override it with a
+`VITE_API_URL` env var (e.g. in a `.env.local` file) if the API runs elsewhere.
+
+## Other commands
+
+```bash
+npm run lint      # oxlint
+npm run build     # production build to dist/
+npm run preview   # serve the production build locally
+```
