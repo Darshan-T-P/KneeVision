@@ -7,6 +7,8 @@ import torch.nn as nn
 from kneevision.fusion.model import (
     MultimodalFusionModel,
     _infer_fusion_ordinal,
+    _infer_image_submodel_ordinal,
+    _infer_text_submodel_ordinal,
 )
 from kneevision.fusion.dataset import MultimodalDataset
 
@@ -125,6 +127,26 @@ def test_infer_fusion_ordinal():
 
     state_non_ordinal = {"fusion_head.5.weight": torch.randn(5, 512)}
     assert _infer_fusion_ordinal(state_non_ordinal, num_classes=5) is False
+
+
+def test_infer_submodel_ordinal_independent_of_fusion_head():
+    # Regression test: a real checkpoint can have a non-ordinal image branch
+    # (5-way classifier) fused under an ordinal fusion head (4-way) and an
+    # ordinal text branch (4-way) — each sub-model's ordinality must be
+    # inferred from its own weights, not inherited from the fusion head.
+    state = {
+        "image_model.classifier.net.5.weight": torch.randn(5, 1024),
+        "text_model.classifier.weight": torch.randn(4, 768),
+        "fusion_head.5.weight": torch.randn(4, 512),
+    }
+    assert _infer_fusion_ordinal(state, num_classes=5) is True
+    assert _infer_image_submodel_ordinal(state, num_classes=5) is False
+    assert _infer_text_submodel_ordinal(state, num_classes=5) is True
+
+
+def test_infer_submodel_ordinal_missing_keys_default_false():
+    assert _infer_image_submodel_ordinal({}, num_classes=5) is False
+    assert _infer_text_submodel_ordinal({}, num_classes=5) is False
 
 
 class DummyTokenizer:

@@ -6,6 +6,7 @@ chroma_db/
 *.ckpt
 data/guidelines/*
 !data/guidelines/.gitkeep
+!data/guidelines/*.md
 data/processed/*
 !data/processed/.gitkeep
 data/raw/*

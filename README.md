@@ -13,8 +13,8 @@ src/kneevision/
 ├── evaluation/             # TTA + ensemble prediction
 ├── xai/                    # Grad-CAM, LIME, Score-CAM
 ├── clinical/               # BioClinicalBERT text model, clinical dataset, report loaders
-├── fusion/                 # (next) multimodal fusion
-├── rag/                    # (next) RAG rehab system
+├── fusion/                 # multimodal fusion (CNN + BioClinicalBERT)
+├── rag/                    # RAG rehab recommendation (retrieval + local LLM)
 └── api/                    # (next) FastAPI backend
 ```
 
@@ -31,6 +31,7 @@ src/kneevision/
 - **Training:** Train/val/test splits, Focal/Ordinal loss, cosine annealing LR, AMP, EMA, early stopping
 - **Evaluation:** Ensemble prediction, Cohen's Kappa, Confusion Matrix, Classification Report
 - **Scripts:** `scripts/train_xray.py`, `scripts/compare_models.py`, `scripts/evaluate.py`
+- **Multi-task auxiliary supervision (`scripts/train_xray_multitask.py`):** trains the same DenseNet121 on the same 8,260 images, plus 8 auxiliary heads predicting real per-compartment OARSI grades (JSN/osteophyte/sclerosis/attrition — see Phase 4) from the shared backbone features. Saved separately as `models/best_densenet121_multitask.pt` (does not replace the champion checkpoint). Test-set result vs. the standard model: quadratic kappa 0.792→**0.801**, macro F1 0.592→**0.621** — driven by a real fix to the worst-performing class (KL3 recall 27%→**43%**, F1 0.42→**0.58**), at a small cost to overall accuracy (60.3%→59.5%) and KL0/KL2 precision. A genuine but modest improvement, not a dramatic one.
 
 ### Phase 3 — Explainable AI (XAI) ✅
 - Abstract Base XAI implementation (`src/kneevision/xai/base.py`)
@@ -55,6 +56,8 @@ src/kneevision/
 - `scripts/train_clinical.py` — training with Focal loss, early-stop on kappa, MLflow tracking
 - **Data sources:**
   - **OAI (primary, free)** — clinical data + gold-standard KL grades, via NIMH Data Archive (NDA) registration. `scripts/download_oai.py` ingests the downloaded tables into the training format. See `data/oai/README.md`.
+    - Report text is composed from *real* OAI fields: demographics (age/BMI), WOMAC pain/stiffness/function, **and real per-compartment OARSI radiographic grades** (medial/lateral joint space narrowing, osteophytes, subchondral sclerosis, attrition) parsed from `kxr_sq_bu00.txt` — the same structural components a radiologist uses to arrive at the KL grade, not the grade itself (no label leakage).
+    - Note: the OAI's free/NDA-gated release is **tabular/assessment data only** (clinical questionnaires + radiologist-read scores). It does not include the X-ray pixel data itself — the image training set is still the 8,260-image Kaggle subset (see Dataset section below); the OAI's separate image release (DICOMs) requires its own access request and is not part of this pipeline.
   - Expert-annotated OAI radiology reports (IEEE DataPort, DOI 10.21227/vcpg-qm58, subscription required) — for real narrative report text.
 
 ### Phase 5 — Multimodal Fusion Pipeline ✅
@@ -64,11 +67,29 @@ src/kneevision/
 - `scripts/evaluate_fusion.py` — standalone benchmark comparing Image-only vs Clinical Text-only vs Multimodal Fusion with publication-ready charts
 - Direct integration into the interactive Streamlit UI with live model inference and preset clinical cases
 
+**Test-set results** (same 1,656 held-out X-rays, `reports/evaluate_fusion/`):
+
+| Modality | Accuracy | Quadratic Kappa |
+|---|--:|--:|
+| Image only (DenseNet121) | 60.3% | 0.792 |
+| Clinical Text only (BioClinicalBERT, real OARSI radiographic findings) | 87.4% | 0.953 |
+| Multimodal Fusion | 88.9% | 0.959 |
+
+**Important caveat on the clinical-text number:** the Kellgren-Lawrence grade is *defined* by combining osteophyte severity, joint space narrowing, and sclerosis via a largely mechanical rule — the same per-compartment fields now composed into the report text (see Phase 4). So this is a legitimate result (no label string in the text, and the fields are drawn from real, independent OAI reads) but a much easier task than "infer severity from patient-reported symptoms alone" — it's closer to decoding a near-deterministic function of KL's own defining components written as prose. That's also why Fusion barely beats Clinical Text alone (+1.5pp accuracy, +0.006 kappa): once the text branch already carries near-complete radiographic signal, the image branch has little independent signal left to add. Treat the fusion story as "CNN pixels + structured radiographic findings," not "images + patient narrative."
+
+### Phase 6 — RAG Rehabilitation System ✅
+- `src/kneevision/rag/corpus.py` — loads `data/guidelines/*.md` (frontmatter `kl_grade`/`topic` + `## `-delimited sections) into retrievable chunks
+- `src/kneevision/rag/retriever.py` — `GuidelineRetriever`: TF-IDF retrieval (scikit-learn, no vector DB needed at this corpus size) with a KL-grade relevance boost
+- `src/kneevision/rag/llm.py` — `OllamaClient`, a thin wrapper around a local [Ollama](https://ollama.com) server (default model `llama3.2:1b`) — no cloud API key required
+- `src/kneevision/rag/pipeline.py` — `RehabRecommender`: retrieves guideline excerpts for a KL grade + optional patient context, asks the local LLM to synthesize a short summary, and **falls back to the raw excerpts if Ollama isn't running** rather than failing
+- `data/guidelines/` — an original, cited summary of public OA guidelines (OARSI 2019, AAOS 2021 3rd ed., ACR/Arthritis Foundation 2019, CDC), stratified by KL grade; every output carries a "not medical advice" disclaimer (`data/guidelines/sources.md`)
+- `scripts/recommend_rehab.py` — CLI demo: `uv run python scripts/recommend_rehab.py --kl 3 --context "..."`
+- Setup: `ollama serve &` then `ollama pull llama3.2:1b` (one-time)
+
 ### Phase 7 — Demo App (Streamlit) ✅
 - `streamlit_app.py` — interactive showcase: X-ray KL prediction with confidence chart, Grad-CAM / Score-CAM / LIME heatmaps, BioClinicalBERT clinical-text prediction, Deep Neural Fusion, model performance dashboard
 
 ### Upcoming Phases
-- Phase 6 — RAG Rehabilitation System (guideline retrieval + LLM synthesis)
 - Phase 7b — FastAPI backend + React frontend (production)
 
 ## MLflow Tracking & Reports
@@ -91,6 +112,7 @@ uv sync --extra dev --python 3.14
 ```
 
 - `--extra dev` installs pytest, ruff, streamlit, and dvc (needed for tests, linting, and the demo app).
+- The RAG rehab recommender (Phase 6) needs [Ollama](https://ollama.com) installed separately (a system binary, not a Python package) — see "RAG rehab recommendation" below.
 - Optional: set `HF_TOKEN` to avoid unauthenticated Hugging Face Hub warnings and get faster model downloads:
   ```bash
   export HF_TOKEN=hf_your_token
@@ -179,6 +201,16 @@ Interactive Streamlit showcase — X-ray diagnosis, Grad-CAM/Score-CAM/LIME expl
 uv run --extra dev streamlit run streamlit_app.py
 # open http://localhost:8501
 ```
+
+### RAG rehab recommendation
+
+One-time setup, then get a rehab suggestion for a KL grade:
+```bash
+ollama serve &
+ollama pull llama3.2:1b
+uv run python scripts/recommend_rehab.py --kl 3 --context "68yo, BMI 31, mild pain on stairs"
+```
+Works without Ollama running too — falls back to showing the retrieved guideline excerpts directly.
 
 ### MLflow UI
 
