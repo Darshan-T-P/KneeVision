@@ -34,6 +34,10 @@ CLINICAL_MAX_LENGTH = int(os.getenv("CLINICAL_MAX_LENGTH", "256"))
 CLINICAL_BATCH_SIZE = int(os.getenv("CLINICAL_BATCH_SIZE", "16"))
 CLINICAL_LEARNING_RATE = float(os.getenv("CLINICAL_LEARNING_RATE", "2e-5"))
 
+GUIDELINES_DIR = DATA_DIR / "guidelines"
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "sqlite:///" + str(PROJECT_ROOT / "mlflow.db"))
 MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "kneevision")
 MLFLOW_ENABLED = os.getenv("MLFLOW_ENABLED", "true").lower() == "true"

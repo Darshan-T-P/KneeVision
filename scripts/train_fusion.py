@@ -10,7 +10,7 @@ from sklearn.metrics import accuracy_score, cohen_kappa_score, classification_re
 from kneevision.fusion.model import MultimodalFusionModel
 from kneevision.fusion.dataset import MultimodalDataset
 from kneevision.models.image_model import load_trained_model as load_image_model
-from kneevision.clinical.model import ClinicalTextModel
+from kneevision.clinical.model import load_trained_clinical_model
 from kneevision.data.prepare import prepare_from_folders
 from kneevision.data.transforms import build_train_transform, build_val_transform
 from kneevision.training.losses import OrdinalLoss, ordinal_to_class
@@ -45,16 +45,8 @@ def main():
 
     logger.info("Loading models...")
     img_model = load_image_model(args.image_model, device, num_classes=5)
-    
-    # Load text model state dict if it's a pt file
-    txt_model = ClinicalTextModel(ordinal=args.ordinal).to(device)
-    if Path(args.text_model).exists():
-        data = torch.load(args.text_model, map_location=device, weights_only=False)
-        if isinstance(data, dict) and "model_state_dict" in data:
-             state = data["model_state_dict"]
-        else:
-             state = data
-        txt_model.load_state_dict(state)
+    txt_model = load_trained_clinical_model(args.text_model, device, num_classes=5)
+    logger.info(f"Text model ordinal={txt_model.ordinal} (auto-detected from checkpoint)")
 
     model = MultimodalFusionModel(img_model, txt_model, ordinal=args.ordinal, freeze_encoders=not args.unfreeze).to(device)
 

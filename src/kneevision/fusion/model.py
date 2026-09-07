@@ -111,6 +111,23 @@ def _infer_fusion_ordinal(state_dict: dict, num_classes: int) -> bool:
     return True
 
 
+def _infer_image_submodel_ordinal(state_dict: dict, num_classes: int) -> bool:
+    """The image sub-model's own classifier head may have a different ordinal
+    setting than the fusion head (e.g. a non-ordinal image checkpoint fused
+    under an ordinal fusion head) — infer it from its own weight shape."""
+    key = "image_model.classifier.net.5.weight"
+    if key in state_dict:
+        return state_dict[key].shape[0] == num_classes - 1
+    return False
+
+
+def _infer_text_submodel_ordinal(state_dict: dict, num_classes: int) -> bool:
+    key = "text_model.classifier.weight"
+    if key in state_dict:
+        return state_dict[key].shape[0] == num_classes - 1
+    return False
+
+
 def load_trained_fusion_model(
     path: str | Path,
     device: torch.device,
@@ -126,8 +143,11 @@ def load_trained_fusion_model(
         state = data
         ordinal = _infer_fusion_ordinal(state, num_classes)
 
-    img_model = KneeXRayClassifier(model_name=img_model_name, num_classes=num_classes, ordinal=ordinal).to(device)
-    txt_model = ClinicalTextModel(num_classes=num_classes, ordinal=ordinal).to(device)
+    img_ordinal = _infer_image_submodel_ordinal(state, num_classes)
+    txt_ordinal = _infer_text_submodel_ordinal(state, num_classes)
+
+    img_model = KneeXRayClassifier(model_name=img_model_name, num_classes=num_classes, ordinal=img_ordinal).to(device)
+    txt_model = ClinicalTextModel(num_classes=num_classes, ordinal=txt_ordinal).to(device)
 
     model = MultimodalFusionModel(
         image_model=img_model,

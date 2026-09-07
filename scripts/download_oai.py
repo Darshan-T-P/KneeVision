@@ -76,6 +76,19 @@ DEFAULT_COLS = {
     "surgery_r": ["P01KSURGR"],
     "surgery_l": ["P01KSURGL"],
     "meds": ["P01KPMED"],
+    # -- kxr_sq_bu00.txt: real per-compartment OARSI radiographic grades (0-3) --
+    "jsn_m": ["V00XRJSM"],
+    "jsn_l": ["V00XRJSL"],
+    "osteophyte_fm": ["V00XROSFM"],
+    "osteophyte_tm": ["V00XROSTM"],
+    "osteophyte_fl": ["V00XROSFL"],
+    "osteophyte_tl": ["V00XROSTL"],
+    "sclerosis_fm": ["V00XRSCFM"],
+    "sclerosis_tm": ["V00XRSCTM"],
+    "sclerosis_fl": ["V00XRSCFL"],
+    "sclerosis_tl": ["V00XRSCTL"],
+    "attrition_m": ["V00XRATTM"],
+    "attrition_l": ["V00XRATTL"],
 }
 
 _ACCESS_STEPS = """\
@@ -199,6 +212,16 @@ def build_dataset(raw_dir: Path, out_csv: Path, out_reports: Path,
             f"Header: {kxr_header}\nPass correct names via --id/--side/--kl."
         )
 
+    # Real per-compartment OARSI radiographic grades, also from kxr_sq_bu00.txt.
+    # Optional: absent in older/reduced releases, so missing columns just skip the field.
+    radiographic_fields = [
+        "jsn_m", "jsn_l",
+        "osteophyte_fm", "osteophyte_tm", "osteophyte_fl", "osteophyte_tl",
+        "sclerosis_fm", "sclerosis_tm", "sclerosis_fl", "sclerosis_tl",
+        "attrition_m", "attrition_l",
+    ]
+    kxr_radio_idx = {f: resolve(f, kxr_header) for f in radiographic_fields}
+
     clin_idx = {f: resolve(f, clin_header) for f in ("age", "sex", "bmi", "pain", "stiffness", "function", "injury_r", "injury_l", "surgery_r", "surgery_l", "meds")}
     if clin_idx["age"] is None:
         raise ValueError(
@@ -232,6 +255,14 @@ def build_dataset(raw_dir: Path, out_csv: Path, out_reports: Path,
         sc = _code(_row_value(row, kxr_header, kxr_idx["side"])) if kxr_idx.get("side") else None
         side = _side_from_code(sc) if sc is not None else "right"
 
+        def kxr_grade(field):
+            col = kxr_radio_idx.get(field)
+            return _code(_row_value(row, kxr_header, col)) if col else None
+
+        def _max_grade(*values):
+            present = [v for v in values if v is not None]
+            return max(present) if present else None
+
         clinical = clinical_by_id.get(pid, {})
         features = {
             "age": _num(clinical.get("age")),
@@ -243,6 +274,14 @@ def build_dataset(raw_dir: Path, out_csv: Path, out_reports: Path,
             "injury": clinical.get("injury_r") if side == "right" else clinical.get("injury_l"),
             "surgery": clinical.get("surgery_r") if side == "right" else clinical.get("surgery_l"),
             "meds": clinical.get("meds"),
+            "jsn_m": kxr_grade("jsn_m"),
+            "jsn_l": kxr_grade("jsn_l"),
+            "osteophyte_m": _max_grade(kxr_grade("osteophyte_fm"), kxr_grade("osteophyte_tm")),
+            "osteophyte_l": _max_grade(kxr_grade("osteophyte_fl"), kxr_grade("osteophyte_tl")),
+            "sclerosis_m": _max_grade(kxr_grade("sclerosis_fm"), kxr_grade("sclerosis_tm")),
+            "sclerosis_l": _max_grade(kxr_grade("sclerosis_fl"), kxr_grade("sclerosis_tl")),
+            "attrition_m": kxr_grade("attrition_m"),
+            "attrition_l": kxr_grade("attrition_l"),
         }
         records.append({"id": pid, "side": side, "kl_grade": kl, "features": features})
 
@@ -260,7 +299,9 @@ def build_dataset(raw_dir: Path, out_csv: Path, out_reports: Path,
         writer = csv.writer(f)
         writer.writerow(["id", "side", "split", "kl_grade", "report",
                          "age", "sex", "bmi", "pain", "stiffness", "function",
-                         "injury", "surgery", "meds"])
+                         "injury", "surgery", "meds",
+                         "jsn_m", "jsn_l", "osteophyte_m", "osteophyte_l",
+                         "sclerosis_m", "sclerosis_l", "attrition_m", "attrition_l"])
         for r in sorted(records, key=lambda r: (r["id"], r["side"])):
             f_ = r["features"]
             writer.writerow([r["id"], r["side"], split_of_id[r["id"]], r["kl_grade"],
@@ -268,7 +309,15 @@ def build_dataset(raw_dir: Path, out_csv: Path, out_reports: Path,
                              f_.get("age") or "", f_.get("sex") or "",
                              f_.get("bmi") or "", f_.get("pain") or "",
                              f_.get("stiffness") or "", f_.get("function") or "",
-                             f_.get("injury") or "", f_.get("surgery") or "", f_.get("meds") or ""])
+                             f_.get("injury") or "", f_.get("surgery") or "", f_.get("meds") or "",
+                             f_.get("jsn_m") if f_.get("jsn_m") is not None else "",
+                             f_.get("jsn_l") if f_.get("jsn_l") is not None else "",
+                             f_.get("osteophyte_m") if f_.get("osteophyte_m") is not None else "",
+                             f_.get("osteophyte_l") if f_.get("osteophyte_l") is not None else "",
+                             f_.get("sclerosis_m") if f_.get("sclerosis_m") is not None else "",
+                             f_.get("sclerosis_l") if f_.get("sclerosis_l") is not None else "",
+                             f_.get("attrition_m") if f_.get("attrition_m") is not None else "",
+                             f_.get("attrition_l") if f_.get("attrition_l") is not None else ""])
 
     written = 0
     for r in records:

@@ -49,9 +49,105 @@ def load_reports_csv(csv_path: Path, text_col: str = "report",
             splits[split][0].append(row[text_col])
             splits[split][1].append(int(row[label_col]))
             if return_features:
-                features = {k: row[k] for k in ["age", "sex", "bmi", "pain", "stiffness", "function", "injury", "surgery", "meds"] if k in row}
+                feature_keys = ["age", "sex", "bmi", "pain", "stiffness", "function",
+                                "injury", "surgery", "meds"] + RADIOGRAPHIC_FIELDS
+                features = {k: row[k] for k in feature_keys if k in row}
                 splits[split][2].append(features)
     return splits
+
+
+# --- Real OARSI atlas per-compartment finding phrases (0-3 grade scale) ---
+# These come from the OAI's kxr_sq_bu00.txt semi-quantitative reads and are
+# independent per-compartment radiographic gradings, not the KL grade itself.
+
+RADIOGRAPHIC_FIELDS = [
+    "jsn_m", "jsn_l",
+    "osteophyte_m", "osteophyte_l",
+    "sclerosis_m", "sclerosis_l",
+    "attrition_m", "attrition_l",
+]
+
+_REAL_JSN = {
+    0: "no joint space narrowing",
+    1: "mild joint space narrowing",
+    2: "moderate joint space narrowing",
+    3: "severe joint space narrowing",
+}
+
+_REAL_OSTEOPHYTES = {
+    0: "no osteophytes",
+    1: "small osteophytes",
+    2: "definite osteophytes",
+    3: "large osteophytes",
+}
+
+_REAL_SCLEROSIS = {
+    0: "no subchondral sclerosis",
+    1: "mild subchondral sclerosis",
+    2: "moderate subchondral sclerosis",
+    3: "marked subchondral sclerosis",
+}
+
+_REAL_ATTRITION = {
+    1: "mild attritional bone change",
+    2: "moderate attritional bone change",
+    3: "severe attritional (bone-on-bone) change",
+}
+
+
+def _grade_int(value) -> int | None:
+    """Parse a per-compartment grade that may arrive as int, float-string, or
+    an empty/missing CSV cell (""), returning None if it can't be read."""
+    if value is None or value == "":
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _compartment_findings(jsn, osteophyte, sclerosis) -> str | None:
+    jsn, osteophyte, sclerosis = _grade_int(jsn), _grade_int(osteophyte), _grade_int(sclerosis)
+    bits = []
+    if jsn is not None:
+        bits.append(_REAL_JSN.get(jsn, "joint space narrowing not assessed"))
+    if osteophyte is not None:
+        bits.append(_REAL_OSTEOPHYTES.get(osteophyte, "osteophytes not assessed"))
+    if sclerosis is not None:
+        bits.append(_REAL_SCLEROSIS.get(sclerosis, "sclerosis not assessed"))
+    return ", ".join(bits) if bits else None
+
+
+def compose_radiographic_findings(features: dict) -> str:
+    """Compose a 'RADIOGRAPHIC FINDINGS' sentence from real per-compartment
+    OARSI grades (medial/lateral joint space narrowing, osteophytes,
+    subchondral sclerosis, attrition) if present in `features`. Returns an
+    empty string if none of these fields are available. Never includes the
+    overall KL grade — only its independent structural components.
+    """
+    parts = []
+    medial = _compartment_findings(
+        features.get("jsn_m"), features.get("osteophyte_m"), features.get("sclerosis_m")
+    )
+    if medial:
+        parts.append(f"Medial compartment: {medial}.")
+
+    lateral = _compartment_findings(
+        features.get("jsn_l"), features.get("osteophyte_l"), features.get("sclerosis_l")
+    )
+    if lateral:
+        parts.append(f"Lateral compartment: {lateral}.")
+
+    for side_label, key in (("medially", "attrition_m"), ("laterally", "attrition_l")):
+        value = _grade_int(features.get(key))
+        if value is not None and value > 0:
+            phrase = _REAL_ATTRITION.get(value)
+            if phrase:
+                parts.append(f"{phrase.capitalize()} is noted {side_label}.")
+
+    if not parts:
+        return ""
+    return "RADIOGRAPHIC FINDINGS: " + " ".join(parts)
 
 
 # --- Synthetic report generation (fallback until real reports are available) ---
@@ -123,11 +219,14 @@ def generate_synthetic_dataset(labels: list[int], out_dir: Path, seed: int = 42)
 def compose_clinical_report(features: dict, side: str = "right", augment: bool = False) -> str:
     """Compose a structured clinical summary from OAI-style baseline features.
 
-    `features` may contain: age, sex, bmi and WOMAC 0-100 symptom items
-    `pain`, `stiffness`, `function` (or a legacy `womac_total`). The KL grade
-    is deliberately NOT included in the text: it is the label the model must
-    predict, and embedding it would leak the answer. Missing fields are simply
-    omitted from the summary.
+    `features` may contain: age, sex, bmi, WOMAC 0-100 symptom items `pain`,
+    `stiffness`, `function` (or a legacy `womac_total`), and real per-compartment
+    OARSI radiographic grades `jsn_m`/`jsn_l`, `osteophyte_m`/`osteophyte_l`,
+    `sclerosis_m`/`sclerosis_l`, `attrition_m`/`attrition_l` (0-3 scale, from
+    kxr_sq_bu00.txt). The overall KL grade is deliberately NOT included in the
+    text: it is the label the model must predict, and embedding it would leak
+    the answer — the radiographic fields above are its independent structural
+    components, not the grade itself. Missing fields are simply omitted.
     """
     def _fmt(value):
         if value is None:
@@ -140,6 +239,11 @@ def compose_clinical_report(features: dict, side: str = "right", augment: bool =
     age, sex, bmi = (features.get(k) for k in ("age", "sex", "bmi"))
 
     parts = [f"Baseline clinical assessment of the {side} knee."]
+
+    findings = compose_radiographic_findings(features)
+    if findings:
+        parts.append(findings)
+
     demos = []
     if age is not None:
         demos.append(f"{_fmt(age)} years old")

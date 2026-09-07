@@ -84,7 +84,18 @@ AVAILABLE_MODELS = set(BACKBONE_REGISTRY)
 
 
 class KneeXRayClassifier(nn.Module):
-    def __init__(self, model_name: str = "densenet121", num_classes: int = 5, ordinal: bool = False):
+    def __init__(
+        self,
+        model_name: str = "densenet121",
+        num_classes: int = 5,
+        ordinal: bool = False,
+        aux_grades: dict[str, int] | None = None,
+    ):
+        """`aux_grades` optionally adds auxiliary classification heads branching
+        directly off the backbone features (e.g. real per-compartment OARSI
+        radiographic grades like `{"jsn_m": 4, "osteophyte_m": 4}`), used only
+        for multi-task training regularization — the main `forward()`/checkpoint
+        shape is unchanged when omitted, so existing checkpoints keep loading."""
         super().__init__()
         if model_name not in BACKBONE_REGISTRY:
             raise ValueError(f"Unsupported model: {model_name}. Choose from {sorted(AVAILABLE_MODELS)}")
@@ -97,9 +108,21 @@ class KneeXRayClassifier(nn.Module):
         self.backbone = backbone
         self.classifier = ImprovedHead(in_features, out_features)
 
+        self.aux_grades = dict(aux_grades) if aux_grades else {}
+        self.aux_heads = nn.ModuleDict({
+            name: nn.Linear(in_features, n_grades) for name, n_grades in self.aux_grades.items()
+        })
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         features = self.backbone(x)
         return self.classifier(features)
+
+    def forward_with_aux(self, x: torch.Tensor) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """Like `forward()`, but also returns the auxiliary head logits."""
+        features = self.backbone(x)
+        main_logits = self.classifier(features)
+        aux_logits = {name: head(features) for name, head in self.aux_heads.items()}
+        return main_logits, aux_logits
 
     def extract_features(self, x: torch.Tensor) -> torch.Tensor:
         return self.backbone(x)
@@ -121,8 +144,22 @@ def _infer_model_name(filename: str) -> str:
     return "densenet121"
 
 
+def _infer_aux_grades(state_dict: dict) -> dict[str, int]:
+    """Detect auxiliary head shapes (see train_xray_multitask.py) from a
+    checkpoint's own keys, so a multitask checkpoint can be loaded through
+    the same path as a standard one — no separate loader needed."""
+    aux_grades = {}
+    prefix, suffix = "aux_heads.", ".weight"
+    for key, value in state_dict.items():
+        if key.startswith(prefix) and key.endswith(suffix):
+            field = key[len(prefix):-len(suffix)]
+            aux_grades[field] = value.shape[0]
+    return aux_grades
+
+
 def load_trained_model(path, device, num_classes: int = 5) -> KneeXRayClassifier:
-    """Load a `best_*.pt` raw state dict or a full `checkpoint_*.pt` checkpoint."""
+    """Load a `best_*.pt` raw state dict or a full `checkpoint_*.pt` checkpoint.
+    Transparently supports multitask checkpoints (extra `aux_heads.*` keys)."""
     data = torch.load(path, map_location=device, weights_only=False)
 
     if isinstance(data, dict) and "model_state_dict" in data:
@@ -134,6 +171,7 @@ def load_trained_model(path, device, num_classes: int = 5) -> KneeXRayClassifier
         model_name = _infer_model_name(str(path))
         ordinal = _infer_ordinal(state, num_classes)
 
-    model = KneeXRayClassifier(model_name, num_classes, ordinal=ordinal).to(device)
+    aux_grades = _infer_aux_grades(state)
+    model = KneeXRayClassifier(model_name, num_classes, ordinal=ordinal, aux_grades=aux_grades or None).to(device)
     model.load_state_dict(state)
     return model

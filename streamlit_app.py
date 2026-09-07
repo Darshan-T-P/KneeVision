@@ -284,18 +284,12 @@ def load_binary_model():
 @st.cache_resource(show_spinner="Loading clinical model...")
 def load_clinical_model():
     device = get_device()
-    from kneevision.clinical.model import ClinicalTextModel
+    from kneevision.clinical.model import ClinicalTextModel, load_trained_clinical_model
 
     trained = MODELS_DIR / "best_clinical.pt"
     try:
         if trained.exists():
-            state = torch.load(trained, map_location=device, weights_only=True)
-            # Auto-detect ordinal: if classifier out_features == 4 (for 5 classes), ordinal=True
-            out_features = state["classifier.weight"].shape[0]
-            is_ordinal = (out_features == 4)
-            model = ClinicalTextModel(num_classes=5, ordinal=is_ordinal).to(device)
-            model.load_state_dict(state)
-            return model, True
+            return load_trained_clinical_model(trained, device, num_classes=5), True
         model = ClinicalTextModel(num_classes=5, ordinal=False).to(device)
         return model, False
     except Exception:
@@ -316,6 +310,13 @@ def load_fusion_model():
     except Exception:
         return None, False
 
+
+@st.cache_resource(show_spinner="Loading rehab guideline index...")
+def load_rehab_recommender():
+    from kneevision.config.settings import GUIDELINES_DIR
+    from kneevision.rag import RehabRecommender
+
+    return RehabRecommender.from_guidelines_dir(GUIDELINES_DIR)
 
 
 @torch.inference_mode()
@@ -813,8 +814,42 @@ def page_demo(device, image_models):
         st.bar_chart(pd.Series(img_p, index=[f"G{i} {KL_LABELS[i]}" for i in range(5)]), height=240)
 
 
+def page_rehab():
+    st.subheader("🏃 Rehab Recommendation")
+    st.caption("Retrieval-augmented guidance from public OA rehab guidelines (OARSI, AAOS, ACR/Arthritis "
+               "Foundation, CDC), synthesized by a local LLM (Ollama). Not medical advice — see disclaimer below.")
 
-    st.subheader("📈 MLflow Tracking")
+    col_kl, col_ctx = st.columns([1, 2])
+    with col_kl:
+        grade = st.select_slider("KL grade", options=[0, 1, 2, 3, 4],
+                                  format_func=lambda g: f"KL {g} · {KL_LABELS[g]}", value=2)
+    with col_ctx:
+        context = st.text_input("Optional patient context",
+                                 placeholder="e.g. 68yo, BMI 31, moderate pain climbing stairs")
+
+    if st.button("Get recommendation", type="primary"):
+        recommender = load_rehab_recommender()
+        with st.spinner("Retrieving guidelines and synthesizing..."):
+            result = recommender.recommend(grade, patient_context=context)
+
+        badge = "🧠 LLM-synthesized" if result.used_llm else "📄 Retrieval-only (Ollama unavailable)"
+        st.markdown(card(f"{badge} — KL {grade} ({KL_LABELS[grade]})",
+                         f"<div class='kvp-sub'>{result.synthesis}</div>"),
+                    unsafe_allow_html=True)
+
+        if not result.used_llm:
+            st.warning("Ollama isn't reachable at localhost:11434 — showing retrieved guideline excerpts "
+                       "directly instead of an LLM-synthesized summary. Run `ollama serve` and "
+                       "`ollama pull llama3.2:1b` to enable synthesis.")
+
+        with st.expander(f"Retrieved {len(result.retrieved_chunks)} guideline excerpt(s)", expanded=False):
+            for chunk in result.retrieved_chunks:
+                st.markdown(f"**{chunk.heading}** — `{chunk.source_path}`")
+                st.text(chunk.text)
+
+        st.caption(result.disclaimer)
+
+
 def page_mlflow():
     st.subheader("📈 MLflow Tracking")
     df = mlflow_runs_table()
@@ -837,6 +872,7 @@ PAGES = {
     "📝 Clinical Text": lambda: page_clinical(load_image_models()[0]),
     "🔀 Multimodal Fusion": lambda: page_fusion(*load_image_models()),
     "🧪 Guided Demo": lambda: page_demo(*load_image_models()),
+    "🏃 Rehab Recommendation": page_rehab,
     "📊 Performance": page_performance,
     "📈 MLflow": page_mlflow,
 }

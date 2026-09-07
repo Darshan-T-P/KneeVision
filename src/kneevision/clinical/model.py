@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 from transformers import AutoModel, AutoTokenizer
@@ -66,3 +68,27 @@ class ClinicalTextModel(nn.Module):
             
         confidences = probs.max(dim=1).values.cpu().tolist()
         return preds, confidences
+
+
+def _infer_ordinal(state_dict: dict, num_classes: int) -> bool:
+    """A standalone ClinicalTextModel checkpoint's classifier head outputs
+    num_classes - 1 logits when ordinal (CORAL)."""
+    key = "classifier.weight"
+    if key in state_dict:
+        return state_dict[key].shape[0] == num_classes - 1
+    return False
+
+
+def load_trained_clinical_model(
+    path: str | Path, device: torch.device, num_classes: int = 5
+) -> ClinicalTextModel:
+    """Load a `best_clinical.pt` state dict with auto-detected ordinality —
+    never assume ordinal True/False, always infer it from the checkpoint's
+    own classifier shape (a mismatch here previously crashed fusion training
+    when the two were trained with different --ordinal settings)."""
+    data = torch.load(path, map_location=device, weights_only=False)
+    state = data["model_state_dict"] if isinstance(data, dict) and "model_state_dict" in data else data
+    ordinal = _infer_ordinal(state, num_classes)
+    model = ClinicalTextModel(num_classes=num_classes, ordinal=ordinal).to(device)
+    model.load_state_dict(state)
+    return model

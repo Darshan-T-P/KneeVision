@@ -35,7 +35,7 @@ from kneevision.config.settings import (
 )
 from kneevision.fusion import load_trained_fusion_model, MultimodalDataset
 from kneevision.models.image_model import load_trained_model as load_image_model
-from kneevision.clinical.model import ClinicalTextModel
+from kneevision.clinical.model import load_trained_clinical_model
 from kneevision.data.prepare import prepare_from_folders
 from kneevision.data.transforms import val_transform
 from kneevision.evaluation.report import (
@@ -212,14 +212,7 @@ def main():
     if txt_model_path.exists():
         try:
             logger.info(f"Evaluating Clinical Text Baseline ({txt_model_path.name})...")
-            state = torch.load(txt_model_path, map_location=device, weights_only=False)
-            is_ordinal = False
-            if isinstance(state, dict):
-                st_dict = state.get("model_state_dict", state)
-                if "classifier.weight" in st_dict and st_dict["classifier.weight"].shape[0] == 4:
-                    is_ordinal = True
-            txt_model = ClinicalTextModel(num_classes=5, ordinal=is_ordinal).to(device)
-            txt_model.load_state_dict(st_dict if isinstance(state, dict) else state)
+            txt_model = load_trained_clinical_model(txt_model_path, device, num_classes=5)
             txt_model.eval()
 
             txt_preds, txt_probs = [], []
@@ -228,7 +221,7 @@ def main():
                     input_ids = batch["input_ids"].to(device)
                     attention_mask = batch["attention_mask"].to(device)
                     logits = txt_model(input_ids, attention_mask)
-                    if is_ordinal:
+                    if txt_model.ordinal:
                         p = ordinal_to_probs(logits)
                     else:
                         p = torch.softmax(logits, dim=1)
