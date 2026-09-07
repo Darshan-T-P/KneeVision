@@ -65,7 +65,15 @@ def ordinal_to_probs(logits: torch.Tensor) -> torch.Tensor:
     """Convert ordinal logits to a proper probability distribution over grades 0..K-1.
 
     P(grade = k) = P(grade >= k) - P(grade >= k + 1), where P(grade >= k) = sigmoid(logits_k).
+
+    The per-task sigmoids aren't guaranteed monotonically decreasing (each
+    binary "is grade > k?" head is trained independently), so the raw
+    difference can go slightly negative for an inconsistent sample. Clamp to
+    zero and renormalize so the result is always a valid distribution that
+    sums to 1 — important now that this is serialized directly as API JSON,
+    not just plotted in a chart where a stray negative bar goes unnoticed.
     """
     probs = torch.sigmoid(logits)
     boundaries = torch.cat([torch.ones_like(probs[:, :1]), probs, torch.zeros_like(probs[:, :1])], dim=1)
-    return boundaries[:, :-1] - boundaries[:, 1:]
+    diffs = (boundaries[:, :-1] - boundaries[:, 1:]).clamp(min=0)
+    return diffs / diffs.sum(dim=1, keepdim=True).clamp(min=1e-8)

@@ -2511,15 +2511,21 @@ dependencies = [
 dev = [
     { name = "dvc" },
     { name = "dvc-s3" },
+    { name = "fastapi" },
+    { name = "httpx" },
     { name = "pytest" },
+    { name = "python-multipart" },
     { name = "ruff" },
     { name = "streamlit" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "dvc", marker = "extra == 'dev'", specifier = ">=3.0" },
     { name = "dvc-s3", marker = "extra == 'dev'" },
+    { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.110" },
+    { name = "httpx", marker = "extra == 'dev'" },
     { name = "ipykernel" },
     { name = "jupyter" },
     { name = "matplotlib" },
@@ -2527,6 +2533,7 @@ requires-dist = [
     { name = "numpy" },
     { name = "pillow" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
+    { name = "python-multipart", marker = "extra == 'dev'" },
     { name = "requests" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.3" },
     { name = "scikit-learn" },
@@ -2535,6 +2542,7 @@ requires-dist = [
     { name = "torchvision" },
     { name = "tqdm" },
     { name = "transformers", specifier = ">=4.40" },
+    { name = "uvicorn", marker = "extra == 'dev'", specifier = ">=0.29" },
 ]
 provides-extras = ["dev"]
 
