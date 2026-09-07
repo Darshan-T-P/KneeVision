@@ -15,7 +15,8 @@ src/kneevision/
 ├── clinical/               # BioClinicalBERT text model, clinical dataset, report loaders
 ├── fusion/                 # multimodal fusion (CNN + BioClinicalBERT)
 ├── rag/                    # RAG rehab recommendation (retrieval + local LLM)
-└── api/                    # (next) FastAPI backend
+└── api/                    # FastAPI backend (Phase 7b)
+frontend/                   # React + Vite SPA consuming the API (Phase 7b)
 ```
 
 ## Progress
@@ -89,8 +90,20 @@ src/kneevision/
 ### Phase 7 — Demo App (Streamlit) ✅
 - `streamlit_app.py` — interactive showcase: X-ray KL prediction with confidence chart, Grad-CAM / Score-CAM / LIME heatmaps, BioClinicalBERT clinical-text prediction, Deep Neural Fusion, model performance dashboard
 
-### Upcoming Phases
-- Phase 7b — FastAPI backend + React frontend (production)
+### Phase 7b — FastAPI Backend + React Frontend ✅
+A decoupled client/server pair wrapping the same inference used by the Streamlit demo, for a real HTTP API + SPA instead of a Python-only UI.
+
+- `src/kneevision/api/main.py` — FastAPI app: `GET /health`, `GET /models`, `POST /predict/xray`, `POST /predict/xray/explain` (Grad-CAM/Score-CAM/LIME, returns a PNG), `POST /predict/clinical`, `POST /predict/fusion`, `POST /rehab/recommend`
+- `src/kneevision/api/deps.py` — lazy, cached model loaders (load once on first request) injected via FastAPI `Depends()`, so routes are testable with fake models — no checkpoints required to run `tests/test_api.py`
+- `frontend/` — a Vite + React SPA with four pages (X-ray Diagnosis, Clinical Text, Fusion, Rehab) mirroring the Streamlit demo, calling the API directly
+- Run both:
+  ```bash
+  uv run uvicorn kneevision.api.main:app --reload --port 8000 --app-dir src
+  cd frontend && npm install && npm run dev   # http://localhost:5173
+  ```
+- Two bugs surfaced and fixed while building this, both real regardless of the API:
+  - `ordinal_to_probs()` could emit slightly negative "probabilities" for a non-monotonic ordinal head (harmless-looking in a Streamlit chart, but a bad contract for API JSON) — now clamped and renormalized to a valid distribution.
+  - `overlay_heatmap()` blended a 0-255 heatmap with a 0-1 source image at matching alpha weights, so the heatmap visually swamped the original X-ray almost completely in every Grad-CAM/Score-CAM/LIME output. Fixed to scale consistently — the underlying X-ray anatomy is now actually visible under the heatmap.
 
 ## MLflow Tracking & Reports
 
@@ -111,7 +124,7 @@ write_artifacts(labels, preds, probs, out_dir="reports/evaluate")
 uv sync --extra dev --python 3.14
 ```
 
-- `--extra dev` installs pytest, ruff, streamlit, and dvc (needed for tests, linting, and the demo app).
+- `--extra dev` installs pytest, ruff, streamlit, dvc, fastapi, and uvicorn (needed for tests, linting, and both demo apps).
 - The RAG rehab recommender (Phase 6) needs [Ollama](https://ollama.com) installed separately (a system binary, not a Python package) — see "RAG rehab recommendation" below.
 - Optional: set `HF_TOKEN` to avoid unauthenticated Hugging Face Hub warnings and get faster model downloads:
   ```bash
@@ -223,7 +236,7 @@ uv run python scripts/mlflow_server.py server --port 5000
 ### Tests & lint
 
 ```bash
-uv run pytest -q     # 154 unit tests
+uv run pytest -q     # 199 unit tests
 uv run ruff check src scripts streamlit_app.py tests
 ```
 

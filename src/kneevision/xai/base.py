@@ -19,11 +19,17 @@ def _colormap(cam: np.ndarray) -> np.ndarray:
 
 
 def overlay_heatmap(cam: np.ndarray, image: np.ndarray, alpha: float = 0.5) -> np.ndarray:
+    """Blend a CAM heatmap over the source image. `image` may be either
+    0-1 float (the convention used by every caller in this package) or
+    already 0-255 — scaled up to 0-255 automatically so the blend weights
+    apply to matching ranges (mixing a 0-255 heatmap with a 0-1 image made
+    the heatmap swamp the original image almost completely)."""
     heatmap = _colormap(cam)
     if heatmap.shape[:2] != image.shape[:2]:
         from PIL import Image as PILImage
         heatmap = np.array(PILImage.fromarray(heatmap).resize((image.shape[1], image.shape[0])))
-    return (alpha * heatmap + (1 - alpha) * image).astype(np.uint8)
+    image_255 = image * 255.0 if image.max() <= 1.0 else image.astype(np.float32)
+    return np.clip(alpha * heatmap + (1 - alpha) * image_255, 0, 255).astype(np.uint8)
 
 
 def get_prediction(
