@@ -11,7 +11,7 @@ from sklearn.metrics import classification_report, cohen_kappa_score
 
 from kneevision.config.settings import (
     CLINICAL_DATA_DIR, CLINICAL_MAX_LENGTH, CLINICAL_BATCH_SIZE,
-    CLINICAL_LEARNING_RATE, MODELS_DIR, MLFLOW_ENABLED,
+    MODELS_DIR, MLFLOW_ENABLED,
 )
 from kneevision.clinical.model import ClinicalTextModel
 from kneevision.clinical.dataset import ClinicalTextDataset

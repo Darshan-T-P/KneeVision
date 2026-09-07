@@ -57,12 +57,18 @@ src/kneevision/
   - **OAI (primary, free)** — clinical data + gold-standard KL grades, via NIMH Data Archive (NDA) registration. `scripts/download_oai.py` ingests the downloaded tables into the training format. See `data/oai/README.md`.
   - Expert-annotated OAI radiology reports (IEEE DataPort, DOI 10.21227/vcpg-qm58, subscription required) — for real narrative report text.
 
+### Phase 5 — Multimodal Fusion Pipeline ✅
+- `MultimodalFusionModel` (`src/kneevision/fusion/model.py`) — late/joint neural fusion architecture combining CNN visual features (1024-dim) and BioClinicalBERT clinical embeddings (768-dim) into a shared 512-dim fusion head
+- `MultimodalDataset` (`src/kneevision/fusion/dataset.py`) — paired data loader with automatic patient/side matching and fallback report generation
+- `scripts/train_fusion.py` — end-to-end multimodal training with Ordinal loss and validation tracking
+- `scripts/evaluate_fusion.py` — standalone benchmark comparing Image-only vs Clinical Text-only vs Multimodal Fusion with publication-ready charts
+- Direct integration into the interactive Streamlit UI with live model inference and preset clinical cases
+
 ### Phase 7 — Demo App (Streamlit) ✅
-- `streamlit_app.py` — interactive showcase: X-ray KL prediction with confidence chart, Grad-CAM / Score-CAM / LIME heatmaps, BioClinicalBERT clinical-text prediction, model performance dashboard
+- `streamlit_app.py` — interactive showcase: X-ray KL prediction with confidence chart, Grad-CAM / Score-CAM / LIME heatmaps, BioClinicalBERT clinical-text prediction, Deep Neural Fusion, model performance dashboard
 
 ### Upcoming Phases
-- Phase 5 — Multimodal Fusion + KL Grade Prediction
-- Phase 6 — RAG Rehabilitation System
+- Phase 6 — RAG Rehabilitation System (guideline retrieval + LLM synthesis)
 - Phase 7b — FastAPI backend + React frontend (production)
 
 ## MLflow Tracking & Reports
@@ -154,7 +160,17 @@ Evaluate an ensemble on the test set (logs metrics + artifacts, no registry):
 uv run python scripts/evaluate.py densenet121 vit_b_16
 ```
 
+Evaluate Multimodal Fusion vs Image and Clinical Text baselines:
+```bash
+uv run python scripts/evaluate_fusion.py
+```
+
 Stale/incompatible checkpoints are skipped automatically with a warning. Output includes accuracy, quadratic kappa, per-class precision/recall/F1, and a normalized confusion matrix.
+
+Generate ROC/PR/learning/ordinal-error curves for the X-ray model (writes to `reports/curves/`):
+```bash
+uv run python scripts/generate_analysis_curves.py
+```
 
 ### Demo app
 
@@ -175,7 +191,7 @@ uv run python scripts/mlflow_server.py server --port 5000
 ### Tests & lint
 
 ```bash
-uv run pytest -q     # 35 unit tests
+uv run pytest -q     # 154 unit tests
 uv run ruff check src scripts streamlit_app.py tests
 ```
 
