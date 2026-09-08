@@ -87,7 +87,7 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False, batch_size
     logger.info("Parameters: %s", f"{params:,}")
 
     if ordinal:
-        criterion = OrdinalLoss(num_classes=5)
+        criterion = OrdinalLoss(num_classes=num_classes)
     else:
         class_weights_t = torch.tensor(class_weights(train_labels, num_classes=num_classes), dtype=torch.float)
         criterion = FocalLoss(alpha=class_weights_t.to(device), gamma=2.0, label_smoothing=LABEL_SMOOTHING)
@@ -200,16 +200,18 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
     parser.add_argument("--binary", action="store_true",
                         help="train a 2-class head (KL0-1 vs KL2-4) instead of 5-class KL grading")
+    parser.add_argument("--ordinal", action="store_true",
+                        help="use CORAL ordinal loss/decoding instead of Focal loss (KL grades are ordered)")
     parser.add_argument("--patience", type=int, default=EARLY_STOP_PATIENCE,
                         help="early-stopping patience in epochs (default: %(default)s)")
     args = parser.parse_args()
 
     set_seed(42)
-    logger.info("Epochs: %d | Models: %s | Binary: %s | Patience: %d",
-                args.epochs, ", ".join(args.models), args.binary, args.patience)
+    logger.info("Epochs: %d | Models: %s | Binary: %s | Ordinal: %s | Patience: %d",
+                args.epochs, ", ".join(args.models), args.binary, args.ordinal, args.patience)
     results = []
     for name in args.models:
-        kappa, params, t = run(name, batch_size=args.batch_size, num_epochs=args.epochs, binary=args.binary, patience=args.patience)
+        kappa, params, t = run(name, ordinal=args.ordinal, batch_size=args.batch_size, num_epochs=args.epochs, binary=args.binary, patience=args.patience)
         results.append((name, params, kappa, t))
 
     logger.info("=" * 60)
