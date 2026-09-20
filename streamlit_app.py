@@ -133,6 +133,7 @@ CSS = """
     .kvp-card {
         background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px;
         padding: 1.1rem 1.3rem; box-shadow: 0 1px 3px rgba(15,23,42,.06); height: 100%;
+        color: #0f172a;
     }
     .kvp-card h4 { margin: 0 0 .55rem 0; color: #334155; font-size: .95rem;
                    text-transform: uppercase; letter-spacing: .06em; }
