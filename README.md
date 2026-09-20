@@ -2,6 +2,13 @@
 
 Explainable multimodal AI for knee osteoarthritis severity grading and personalized rehabilitation recommendation.
 
+**🚀 Live demo:** [kneevision-5pysomu95cohrb5fczbdgv.streamlit.app](https://kneevision-5pysomu95cohrb5fczbdgv.streamlit.app/)
+**🤗 Model weights:** [huggingface.co/Darshan13/KneeVision-models](https://huggingface.co/Darshan13/KneeVision-models)
+
+First load takes 1–2 minutes — the deployed app fetches ~1GB of checkpoints from the Hugging Face
+repo above on cold start (see [Deployment](#deployment)). Research/educational demo only — not a
+medical device.
+
 ## Architecture
 
 ```
@@ -104,6 +111,32 @@ A decoupled client/server pair wrapping the same inference used by the Streamlit
 - Two bugs surfaced and fixed while building this, both real regardless of the API:
   - `ordinal_to_probs()` could emit slightly negative "probabilities" for a non-monotonic ordinal head (harmless-looking in a Streamlit chart, but a bad contract for API JSON) — now clamped and renormalized to a valid distribution.
   - `overlay_heatmap()` blended a 0-255 heatmap with a 0-1 source image at matching alpha weights, so the heatmap visually swamped the original X-ray almost completely in every Grad-CAM/Score-CAM/LIME output. Fixed to scale consistently — the underlying X-ray anatomy is now actually visible under the heatmap.
+
+### Phase 7c — Deployment ✅
+
+The Streamlit demo (Phase 7) is live at
+[kneevision-5pysomu95cohrb5fczbdgv.streamlit.app](https://kneevision-5pysomu95cohrb5fczbdgv.streamlit.app/),
+deployed on Streamlit Community Cloud directly from this repo.
+
+- **Checkpoints aren't in git** (`models/` is gitignored — multi-GB of `.pt` files) — instead
+  `streamlit_app.py` fetches the inference checkpoints it needs from a companion Hugging Face Hub
+  model repo, [`Darshan13/KneeVision-models`](https://huggingface.co/Darshan13/KneeVision-models),
+  on first run (`ensure_checkpoints()`), and reuses them on every rerun after. Local dev is
+  unaffected — if `models/*.pt` already exists on disk, the fetch is skipped entirely.
+- `requirements.txt` at the repo root (pinned to the CPU PyTorch wheel index) for platforms that
+  don't use `uv`/`pyproject.toml`.
+- `data/raw/test/` (the demo X-ray picker images) is tracked in git despite the rest of `data/raw/`
+  being gitignored, so the "pick a demo image" flow works on a fresh deploy, not just local dev
+  with the full dataset unpacked.
+- Hugging Face Spaces was the first attempt, but the account's free tier only allows **static**
+  Spaces — Docker/Gradio Spaces (needed to run an arbitrary Streamlit app) require a paid HF PRO
+  subscription. Streamlit Community Cloud has no such restriction, so that's the live deployment;
+  the Docker-based Space setup (`Dockerfile`, HF-Spaces `README.md` frontmatter) still exists as a
+  documented, tested-locally alternative if that constraint changes.
+- One real bug this surfaced: `.kvp-card`'s CSS set an explicit white background but no explicit
+  text color, so numbers/body text inherited Streamlit's ambient (light, dark-theme) text color and
+  became nearly invisible against the white card — fixed by setting an explicit dark text color on
+  the card.
 
 ## MLflow Tracking & Reports
 
