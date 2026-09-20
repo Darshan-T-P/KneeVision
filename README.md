@@ -123,8 +123,19 @@ deployed on Streamlit Community Cloud directly from this repo.
   model repo, [`Darshan13/KneeVision-models`](https://huggingface.co/Darshan13/KneeVision-models),
   on first run (`ensure_checkpoints()`), and reuses them on every rerun after. Local dev is
   unaffected — if `models/*.pt` already exists on disk, the fetch is skipped entirely.
-- `requirements.txt` at the repo root (pinned to the CPU PyTorch wheel index) for platforms that
-  don't use `uv`/`pyproject.toml`.
+- `deploy/streamlit_app.py` is the actual Community Cloud entrypoint — a thin `runpy` wrapper
+  around the real `streamlit_app.py` at the repo root, living in its own `deploy/` directory with
+  its own `deploy/requirements.txt` (pinned to the CPU PyTorch wheel index). This was a real
+  incident, not a preemptive choice: Community Cloud prefers `uv.lock` over `requirements.txt`
+  whenever both sit in the entrypoint's own directory, so pointing it straight at the root
+  `streamlit_app.py` made it `uv sync` the *root* `uv.lock` — the full GPU-oriented lockfile used
+  for local training on this machine's real CUDA GPU, dragging in several GB of `nvidia-cu13`/
+  `cuda-toolkit`/`triton` packages into a CPU-only container and crashing the app. Moving the
+  entrypoint into a directory with no `uv.lock`/`pyproject.toml` nearby forces Cloud to fall back to
+  the lean `deploy/requirements.txt` instead, without touching the root project or local GPU dev at
+  all — `__file__` inside the wrapped script still resolves to its real repo-root path, so every
+  relative path in `streamlit_app.py` (`models/`, `reports/`, `mlflow.db`, `data/raw/test/`) is
+  unaffected.
 - `data/raw/test/` (the demo X-ray picker images) is tracked in git despite the rest of `data/raw/`
   being gitignored, so the "pick a demo image" flow works on a fresh deploy, not just local dev
   with the full dataset unpacked.
