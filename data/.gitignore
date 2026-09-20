@@ -1,1 +1,3 @@
-/raw
+/raw/*
+!/raw/test/
+!/raw/test/**

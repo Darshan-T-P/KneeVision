@@ -10,7 +10,12 @@ import re
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
-os.environ.setdefault("HF_HUB_OFFLINE", "1")
+if (Path(__file__).resolve().parent / "models" / "best_densenet121.pt").exists():
+    # Checkpoints already present (normal dev setup) — skip the Hub-freshness check transformers/
+    # huggingface_hub would otherwise make on every model load. On a fresh clone (e.g. a Space,
+    # where checkpoints and the BioClinicalBERT cache still need to be fetched), stay online so
+    # ensure_checkpoints() below and the first BioClinicalBERT load can actually reach the Hub.
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 
 import streamlit as st
@@ -29,6 +34,37 @@ MODELS_DIR = Path(__file__).resolve().parent / "models"
 REPORTS_DIR = Path(__file__).resolve().parent / "reports"
 DEMO_DIR = Path(__file__).resolve().parent / "data" / "raw" / "test"
 KL_LABELS = {0: "Normal", 1: "Doubtful", 2: "Mild", 3: "Moderate", 4: "Severe"}
+
+CHECKPOINT_REPO = "Darshan13/KneeVision-models"
+REQUIRED_CHECKPOINTS = [
+    "best_densenet121.json", "best_densenet121.pt",
+    "best_efficientnet-b4.json", "best_efficientnet-b4.pt",
+    "best_convnext_small_binary.json", "best_convnext_small_binary.pt",
+    "best_clinical.pt",
+    "best_fusion.pt",
+]
+
+
+def ensure_checkpoints() -> None:
+    """Pull inference checkpoints from the companion HF Hub model repo on first run —
+    they're too large for git and aren't bundled with the app (e.g. on Spaces)."""
+    missing = [f for f in REQUIRED_CHECKPOINTS if not (MODELS_DIR / f).exists()]
+    if not missing:
+        return
+    from huggingface_hub import hf_hub_download
+
+    MODELS_DIR.mkdir(exist_ok=True)
+    for filename in missing:
+        try:
+            hf_hub_download(repo_id=CHECKPOINT_REPO, filename=filename, local_dir=str(MODELS_DIR))
+        except Exception as exc:
+            # Runs before st.set_page_config() — an st.* call here would crash the whole app
+            # (Streamlit requires set_page_config to be the first command). The individual
+            # loaders below already degrade gracefully when a checkpoint is missing.
+            print(f"[ensure_checkpoints] could not fetch {filename} from {CHECKPOINT_REPO}: {exc}")
+
+
+ensure_checkpoints()
 
 DEMO_REPORTS = {
     0: ("FINDINGS: The medial and lateral femorotibial joint spaces are well preserved. "
@@ -852,7 +888,12 @@ def page_rehab():
 
 def page_mlflow():
     st.subheader("📈 MLflow Tracking")
-    df = mlflow_runs_table()
+    try:
+        df = mlflow_runs_table()
+    except Exception:
+        # No mlflow.db shipped with this deployment (e.g. a fresh clone) — the sqlite
+        # backend has no schema yet, which mlflow surfaces as a query error, not an empty result.
+        df = pd.DataFrame()
     if df.empty:
         st.info("No MLflow runs found in mlflow.db. Train a model to populate tracking.")
         return
