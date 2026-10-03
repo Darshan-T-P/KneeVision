@@ -1,0 +1,26 @@
+Transition,Count,Percentage_of_True_Class,Error_Type
+KL0 -> KL0 (Correct),501,78.4,Exact Match
+KL0 -> KL1,120,18.78,Over-grade (+1)
+KL0 -> KL2,18,2.82,Over-grade (+2)
+KL0 -> KL3,0,0.0,None
+KL0 -> KL4,0,0.0,Extreme Over-grade (+4)
+KL1 -> KL0,99,33.45,Under-grade (-1)
+KL1 -> KL1 (Correct),138,46.62,Exact Match
+KL1 -> KL2,59,19.93,Over-grade (+1)
+KL1 -> KL3,0,0.0,None
+KL1 -> KL4,0,0.0,None
+KL2 -> KL0,16,3.58,Under-grade (-2)
+KL2 -> KL1,135,30.2,Under-grade (-1)
+KL2 -> KL2 (Correct),287,64.21,Exact Match
+KL2 -> KL3,9,2.01,Over-grade (+1)
+KL2 -> KL4,0,0.0,None
+KL3 -> KL0,0,0.0,None
+KL3 -> KL1,15,6.73,Under-grade (-2)
+KL3 -> KL2,106,47.53,Under-grade (-1)
+KL3 -> KL3 (Correct),97,43.5,Exact Match
+KL3 -> KL4,5,2.24,Over-grade (+1)
+KL4 -> KL0,0,0.0,Extreme Under-grade (-4)
+KL4 -> KL1,0,0.0,None
+KL4 -> KL2,2,3.92,Under-grade (-2)
+KL4 -> KL3,15,29.41,Under-grade (-1)
+KL4 -> KL4 (Correct),34,66.67,Exact Match

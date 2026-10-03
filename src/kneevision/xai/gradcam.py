@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import numpy as np
 from PIL import Image
 from .base import overlay_heatmap, get_prediction
+from kneevision.training.losses import ordinal_to_class, ordinal_to_probs
 
 
 class GradCAM:
@@ -27,13 +28,25 @@ class GradCAM:
 
     def generate(self, x: torch.Tensor, class_idx: int | None = None) -> np.ndarray:
         logits = self.model(x)
+        is_ordinal = getattr(self.model, "ordinal", False)
         if class_idx is None:
-            class_idx = logits.argmax(dim=1).item()
-        # Ordinal heads emit num_classes - 1 logits; clamp the target index.
-        class_idx = min(class_idx, logits.shape[1] - 1)
+            class_idx = ordinal_to_class(logits).item() if is_ordinal else logits.argmax(dim=1).item()
 
         self.model.zero_grad()
-        logits[0, class_idx].backward()
+        if is_ordinal:
+            # CORAL emits K-1 cumulative "P(grade > k)" logits, not one
+            # logit per grade. Backpropping a single raw threshold logit
+            # (the old behavior, via a naive index clamp) explains "is this
+            # worse than grade k", not "is this grade `class_idx`" -- a
+            # semantic mismatch between the heatmap and its own caption.
+            # Target the predicted grade's own probability mass instead.
+            probs = ordinal_to_probs(logits)
+            target_idx = min(class_idx, probs.shape[1] - 1)
+            target = probs[0, target_idx]
+        else:
+            target_idx = min(class_idx, logits.shape[1] - 1)
+            target = logits[0, target_idx]
+        target.backward()
 
         weights = self.gradients.mean(dim=(2, 3), keepdim=True)
         cam = (weights * self.activations).sum(dim=1, keepdim=True)

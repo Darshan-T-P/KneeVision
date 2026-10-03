@@ -33,20 +33,48 @@ class FocalLoss(nn.Module):
 class OrdinalLoss(nn.Module):
     """CORAL (Consistent Rank Logits) loss for ordinal regression.
     Treats KL grades as ordered: 0 < 1 < 2 < 3 < 4.
-    Predicts 4 binary tasks: is grade > 0? > 1? > 2? > 3?"""
-    def __init__(self, num_classes: int = 5, alpha: torch.Tensor | None = None):
+    Predicts 4 binary tasks: is grade > 0? > 1? > 2? > 3?
+
+    `soft_targets=False` (default, bit-compatible) hardens 2-D targets with
+    ``argmax`` before building threshold targets, matching the original MixUp
+    behavior. `soft_targets=True` interprets each 2-D row as a class
+    distribution p and builds the *expected* cumulative-tail targets
+    ``t_k = P(Y > k) = sum(p[c] for c > k)`` — never argmax — which equals the
+    expected hard CORAL loss under the mix distribution (BCE is affine in the
+    target, so ``E[BCE(logit, t)] = BCE(logit, E[t])``). For one-hot rows this
+    is bit-equivalent to the hard path."""
+
+    def __init__(self, num_classes: int = 5, alpha: torch.Tensor | None = None,
+                 soft_targets: bool = False):
         super().__init__()
         self.num_classes = num_classes
         self.alpha = alpha
+        self.soft_targets = soft_targets
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         labels = torch.arange(self.num_classes - 1, device=targets.device).float()
         if targets.ndim == 2:
+            if self.soft_targets:
+                if targets.shape[1] != self.num_classes:
+                    raise ValueError(
+                        f"soft ordinal targets must have {self.num_classes} columns "
+                        f"(one per class), got {targets.shape[1]}"
+                    )
+                # t_k = P(Y > k) = 1 - prefix_sum(p[:k+1]) for k in 0..K-2.
+                ordinal_targets = (1.0 - targets.cumsum(dim=1))[:, : self.num_classes - 1]
+                ordinal_targets = ordinal_targets.clamp(min=0.0, max=1.0)
+                loss = F.binary_cross_entropy_with_logits(logits, ordinal_targets, reduction="none")
+                if self.alpha is not None:
+                    # Expected per-sample weighting over the mix distribution,
+                    # mirroring FocalLoss._soft_focal_loss's `targets @ alpha`.
+                    weights = (targets @ self.alpha).unsqueeze(1)
+                    loss = loss * weights
+                return loss.mean()
             targets = targets.argmax(dim=1)
         targets = targets.long()
         extended_targets = targets.float().unsqueeze(1)
         ordinal_labels = (extended_targets > labels).float()
-        
+
         loss = F.binary_cross_entropy_with_logits(logits, ordinal_labels, reduction="none")
         if self.alpha is not None:
             weights = self.alpha[targets].unsqueeze(1)

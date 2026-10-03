@@ -31,13 +31,18 @@ class OllamaClient:
                 timeout=self.timeout,
             )
             resp.raise_for_status()
-        except requests.exceptions.RequestException as exc:
+            # Parsing the body inside this try too: a 200 response with a
+            # truncated/non-JSON body (proxy hiccup, server crash mid-write)
+            # used to raise json.JSONDecodeError here, which is a ValueError,
+            # not a RequestException -- it was propagating uncaught instead
+            # of degrading gracefully like every other Ollama failure mode.
+            data = resp.json()
+        except (requests.exceptions.RequestException, ValueError) as exc:
             raise OllamaUnavailableError(
                 f"Could not reach Ollama at {self.base_url} (is `ollama serve` running "
                 f"and has `{self.model}` been pulled?): {exc}"
             ) from exc
 
-        data = resp.json()
         if "response" not in data:
             raise OllamaUnavailableError(f"Unexpected Ollama response: {data}")
         return data["response"].strip()

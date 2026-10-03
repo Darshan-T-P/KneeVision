@@ -1,0 +1,33 @@
+{
+  "n_boot": 1000,
+  "seed": 42,
+  "n_patients": 828,
+  "n_samples": 1656,
+  "source_predictions_file": "models/final_ordinal_soft_mixup_a04_test.predictions.csv",
+  "results": {
+    "qwk": {
+      "point_estimate": 0.8232383980468834,
+      "bootstrap_mean": 0.8229949177190878,
+      "ci_lower_2.5pct": 0.8036001329125383,
+      "ci_upper_97.5pct": 0.839817170811548
+    },
+    "mae": {
+      "point_estimate": 0.392512077294686,
+      "bootstrap_mean": 0.39213466183574885,
+      "ci_lower_2.5pct": 0.3641304347826087,
+      "ci_upper_97.5pct": 0.4214975845410628
+    },
+    "within_1": {
+      "point_estimate": 0.9692028985507246,
+      "bootstrap_mean": 0.9691998792270531,
+      "ci_lower_2.5pct": 0.961352657004831,
+      "ci_upper_97.5pct": 0.9776570048309179
+    },
+    "exact_accuracy": {
+      "point_estimate": 0.6382850241545893,
+      "bootstrap_mean": 0.6386654589371981,
+      "ci_lower_2.5pct": 0.6123188405797102,
+      "ci_upper_97.5pct": 0.663058574879227
+    }
+  }
+}
