@@ -346,14 +346,18 @@ This study is limited by retrospective analysis on a single multi-center public 
 
 ## Phase 16 — Publication Figure Specifications
 
-| Figure Candidate | Purpose | X-Axis | Y-Axis | Source Artifact | Generation Status |
-| :--- | :--- | :--- | :--- | :--- | :---: |
-| **Fig 1. Ordinal Architecture & Soft MixUp** | Illustrate feature backbone, CORAL rank head, and continuous cumulative target formulation | Model components / pipeline flow | Data dimensionality & transformations | Conceptual schematic | Needs drafting for manuscript |
-| **Fig 2. Ablation & Trajectory Comparison** | Compare validation progression across loss & MixUp configurations | Experimental configurations | Validation QWK & MAE | `reports/final_results_table.csv` | Ready for plotting |
-| **Fig 3. Final Test Confusion Matrix** | Display raw counts and normalized recall for all KL grades | Predicted KL Grade (0–4) | True KL Grade (0–4) | `reports/final_ordinal_soft_mixup_a04_test/confusion_matrix.png` | **Generated & Verified** |
-| **Fig 4. Absolute Ordinal Error Distribution** | Demonstrate concentration of errors at $|y - \hat{y}| \le 1$ | Absolute Error Distance (0, 1, 2, 3, 4) | Percentage of Test Cases (%) | `reports/final_ordinal_soft_mixup_a04_test/ordinal_error_distribution.png` | **Generated & Verified** |
-| **Fig 5. Per-Class Precision, Recall, & F1** | Highlight performance disparities across disease stages | KL Grades (KL0..KL4) | Score (0.0 to 1.0) | `models/final_ordinal_soft_mixup_a04_test.json` | Ready for plotting |
-| **Fig 6. Validation vs Test Generalization** | Compare core metrics across validation and held-out test splits | Core Metrics (QWK, Acc, Within-1, Macro-F1) | Metric Score | `reports/final_results_table.csv` | Ready for plotting |
+All publication figures are generated at publication resolution (300 DPI) via `scripts/generate_publication_figures.py` into `reports/figures/`.
+
+| Figure Candidate | Purpose | Source Artifact | Generation Status |
+| :--- | :--- | :--- | :---: |
+| **Fig 1. Ordinal Architecture & Soft MixUp** | Pipeline schematic: Image blending, DenseNet121 backbone, CORAL threshold head, continuous cumulative targets | `reports/figures/fig1_architecture_schematic.png` | **Generated & Verified** |
+| **Fig 2. Ablation & Trajectory Comparison** | Progression of Val QWK and Val MAE across loss functions and MixUp levels | `reports/figures/fig2_ablation_comparison.png` | **Generated & Verified** |
+| **Fig 3. Final Test Confusion Matrix** | $5 \times 5$ confusion matrix with absolute counts and row-normalized recall | `reports/figures/fig3_test_confusion_matrix.png` | **Generated & Verified** |
+| **Fig 4. Absolute Ordinal Error Distribution** | Demonstration of error concentration ($96.92\%$ Within-1, $0\%$ extreme) | `reports/figures/fig4_error_distribution.png` | **Generated & Verified** |
+| **Fig 5. Per-Class Precision, Recall, & F1** | Disparities across KL stages highlighting KL1 and KL3 boundary discordance | `reports/figures/fig5_per_class_metrics.png` | **Generated & Verified** |
+| **Fig 6. Validation vs Test Generalization** | Paired comparison showing zero test generalization degradation with $95\%$ CIs | `reports/figures/fig6_val_vs_test_generalization.png` | **Generated & Verified** |
+| **Fig 7. Test Reliability Diagram** | Probability calibration curves per KL grade with closed-boundary ECE callout | `reports/figures/fig7_reliability_diagram.png` | **Generated & Verified** |
+
 
 ---
 
