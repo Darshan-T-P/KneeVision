@@ -1,0 +1,84 @@
+{
+  "binary": {
+    "accuracy": 0.8532608695652174,
+    "macro_f1": 0.8481781170310658,
+    "quadratic_weighted_kappa": 0.6972609582733986,
+    "per_class": [
+      {
+        "precision": 0.837890625,
+        "recall": 0.9176470588235294,
+        "f1": 0.8759571209800918,
+        "support": 935
+      },
+      {
+        "precision": 0.8781645569620253,
+        "recall": 0.7697642163661581,
+        "f1": 0.8203991130820399,
+        "support": 721
+      }
+    ],
+    "confusion_matrix": [
+      [
+        858,
+        77
+      ],
+      [
+        166,
+        555
+      ]
+    ],
+    "support_total": 1656,
+    "group_names": [
+      "No OA (KL 0-1)",
+      "OA (KL 2-4)"
+    ]
+  },
+  "3class": {
+    "accuracy": 0.782608695652174,
+    "macro_f1": 0.7321338677705395,
+    "quadratic_weighted_kappa": 0.7622208040842374,
+    "per_class": [
+      {
+        "precision": 0.837890625,
+        "recall": 0.9176470588235294,
+        "f1": 0.8759571209800918,
+        "support": 935
+      },
+      {
+        "precision": 0.6080508474576272,
+        "recall": 0.6420581655480985,
+        "f1": 0.6245919477693146,
+        "support": 447
+      },
+      {
+        "precision": 0.94375,
+        "recall": 0.551094890510949,
+        "f1": 0.695852534562212,
+        "support": 274
+      }
+    ],
+    "confusion_matrix": [
+      [
+        858,
+        77,
+        0
+      ],
+      [
+        151,
+        287,
+        9
+      ],
+      [
+        15,
+        108,
+        151
+      ]
+    ],
+    "support_total": 1656,
+    "group_names": [
+      "None/Doubtful (KL 0-1)",
+      "Mild (KL 2)",
+      "Moderate/Severe (KL 3-4)"
+    ]
+  }
+}

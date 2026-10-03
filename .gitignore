@@ -39,7 +39,19 @@ venv/
 .vscode/
 wandb/
 # Generated artifacts
-reports/
+# `reports/*` (not `reports/`) so git still descends into the directory and the
+# research-audit documents below can be re-included. Excluding the directory
+# itself would make negation impossible ("It is not possible to re-include a file
+# if a parent directory of that file is excluded"). Everything not re-included
+# here — evaluation curves, confusion matrices, exported zips — stays ignored.
+reports/*
+!reports/*.md
+!reports/*.json
+!reports/*.csv
+!reports/data_validation/
+reports/data_validation/*
+!reports/data_validation/DATA_VALIDATION_REPORT.md
+!reports/data_validation/LEAKAGE_ANALYSIS.md
 data/clinical/synthetic/
 data/oai/raw/
 data/oai/processed/

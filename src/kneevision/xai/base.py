@@ -5,7 +5,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.cm as mcm
-from kneevision.training.losses import ordinal_to_class
+from kneevision.training.losses import ordinal_to_class, ordinal_to_probs
 
 
 def _colormap(cam: np.ndarray) -> np.ndarray:
@@ -42,7 +42,15 @@ def get_prediction(
         logits = model(x)
         if getattr(model, "ordinal", False):
             pred = ordinal_to_class(logits).item()
-            confidence = 1.0
+            # Was hardcoded to 1.0 -- always "100% confident" regardless of
+            # how uncertain the model actually was, which is fine while XAI
+            # only ever runs on the non-ordinal champion but would silently
+            # mislead every figure/caption the moment an ordinal (CORAL)
+            # checkpoint is used for explainability. Derive a real per-class
+            # probability the same way the API does (ordinal_to_probs).
+            probs = ordinal_to_probs(logits)
+            pred = min(pred, probs.shape[1] - 1)
+            confidence = probs[0, pred].item()
         else:
             probs = F.softmax(logits, dim=1)
             pred = logits.argmax(dim=1).item()

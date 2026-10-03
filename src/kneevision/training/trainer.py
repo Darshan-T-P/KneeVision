@@ -3,8 +3,9 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from sklearn.metrics import cohen_kappa_score
+from kneevision.evaluation.report import compute_metrics
 from kneevision.training.losses import ordinal_to_class
+from kneevision.utils.helpers import get_rng_state
 from kneevision.utils.logging import setup_logger
 
 logger = setup_logger("trainer")
@@ -102,7 +103,19 @@ def validate(
     criterion: nn.Module,
     device: torch.device,
     use_kappa: bool = True,
-) -> tuple[float, float]:
+    return_metrics: bool = False,
+    num_classes: int | None = None,
+    class_names: list[str] | None = None,
+    return_predictions: bool = False,
+) -> tuple[float, float] | tuple[float, float, dict] | tuple[float, float, dict, list, list]:
+    """Evaluate on the given split.
+
+    Pure evaluation instrumentation: it never touches gradients, optimizers,
+    schedulers, EMA, early stopping, the RNG, dataloader ordering, or checkpoint
+    state. ``return_predictions=True`` additionally returns the (predicted,
+    label) integer lists so callers can persist the confirmation matrix of the
+    selected model without re-deriving metrics.
+    """
     model.eval()
     total_loss = 0.0
     all_preds, all_labels = [], []
@@ -122,17 +135,30 @@ def validate(
 
     avg_loss = total_loss / len(loader)
 
-    if use_kappa:
-        score = cohen_kappa_score(all_labels, all_preds, weights='quadratic')
-    else:
-        correct = sum(p == t for p, t in zip(all_preds, all_labels))
-        score = correct / len(all_labels)
+    # Decisions are driven only by this authoritative metric bundle (report.py);
+    # the selection score is the validation QWK on this split.
+    metrics = compute_metrics(all_labels, all_preds, num_classes=num_classes,
+                              class_names=class_names)
+    score = metrics["qwk"] if use_kappa else metrics["accuracy"]
 
+    if return_predictions:
+        return avg_loss, score, metrics, all_preds, all_labels
+    if return_metrics:
+        return avg_loss, score, metrics
     return avg_loss, score
 
 
 def save_checkpoint(path, model, optimizer, scheduler, ema, early_stop,
-                    epoch, best_kappa, history, model_name, ordinal):
+                    epoch, best_kappa, history, model_name, ordinal,
+                    metadata: dict | None = None, include_rng_state: bool = True):
+    """Persist a full, resumable training state.
+
+    Beyond weights and optimizer/scheduler state this stores: the experiment
+    pointer, the best validation QWK, the full per-epoch history, and — when
+    ``metadata`` is supplied — experiment/seed/config/environment provenance.
+    ``include_rng_state`` captures the process RNG so a resumed run continues
+    from the exact sampler state.
+    """
     torch.save({
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
@@ -144,6 +170,8 @@ def save_checkpoint(path, model, optimizer, scheduler, ema, early_stop,
         "history": history,
         "model_name": model_name,
         "ordinal": ordinal,
+        "metadata": metadata,
+        "rng_state": get_rng_state() if include_rng_state else None,
     }, path)
     logger.info("Checkpoint saved to %s", path)
 
@@ -159,4 +187,5 @@ def load_checkpoint(path, model, optimizer=None, scheduler=None, ema=None, early
         ema.model.load_state_dict(ckpt["ema_state_dict"])
     if early_stop and ckpt.get("early_stop_state"):
         early_stop.load_state_dict(ckpt["early_stop_state"])
-    return ckpt.get("epoch", 0), ckpt.get("best_kappa", -1.0), ckpt.get("history", {})
+    return (ckpt.get("epoch", 0), ckpt.get("best_kappa", -1.0),
+            ckpt.get("history", {}), ckpt.get("rng_state"), ckpt.get("metadata"))

@@ -1,9 +1,17 @@
-"""Tests for utils/helpers.py — set_seed and get_device."""
+"""Tests for utils/helpers.py — set_seed, reproducibility, environment capture."""
 import torch
 import numpy as np
 import random
 
-from kneevision.utils.helpers import set_seed, get_device
+from kneevision.utils.helpers import (
+    set_seed,
+    get_device,
+    seed_worker,
+    get_rng_state,
+    set_rng_state,
+    get_git_commit,
+    get_environment_info,
+)
 
 
 # ── set_seed ───────────────────────────────────────────────────────────────────
@@ -76,3 +84,67 @@ def test_get_device_tensor_creation():
     device = get_device()
     t = torch.tensor([1.0, 2.0]).to(device)
     assert t.device.type == device.type
+
+
+# ── DataLoader worker seeding (requirement 4) ─────────────────────────────────
+
+def test_seed_worker_gives_distinct_states_per_worker():
+    set_seed(42)
+    seed_worker(0)
+    worker0 = random.random()
+    seed_worker(1)
+    worker1 = random.random()
+    assert worker0 != worker1
+
+
+def test_seed_worker_is_reproducible_for_same_worker():
+    set_seed(7)
+    seed_worker(3)
+    a = np.random.rand(5)
+    set_seed(7)
+    seed_worker(3)
+    b = np.random.rand(5)
+    assert np.allclose(a, b)
+
+
+# ── RNG snapshot / restore (continuity for resume) ────────────────────────────
+
+def test_rng_state_roundtrip_resumes_sequence():
+    set_seed(0)
+    state = get_rng_state()
+    expected = [random.random() for _ in range(5)]
+    # consume RNG so current state diverges
+    for _ in range(40):
+        random.random()
+    set_rng_state(state)
+    resumed = [random.random() for _ in range(5)]
+    assert resumed == expected
+
+
+def test_rng_state_includes_python_numpy_torch():
+    set_seed(0)
+    state = get_rng_state()
+    assert "python" in state and "numpy" in state and "torch_cpu" in state
+
+
+def test_set_rng_state_none_is_noop():
+    set_rng_state(None)  # must not raise
+
+
+# ── environment / version capture ─────────────────────────────────────────────
+
+def test_environment_info_has_required_keys():
+    info = get_environment_info()
+    for key in ("python_version", "pytorch_version", "torchvision_version",
+                "cuda_version", "platform"):
+        assert key in info, f"missing {key}"
+        assert isinstance(info[key], str)
+
+
+def test_git_commit_is_short_sha_or_none():
+    commit = get_git_commit()
+    if commit is None:
+        return  # not inside a git repo — acceptable
+    assert len(commit) >= 7
+    head = commit.split("-")[0]
+    assert int(head, 16) >= 0  # hexadecimal short SHA

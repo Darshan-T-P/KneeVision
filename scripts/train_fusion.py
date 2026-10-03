@@ -15,6 +15,7 @@ from kneevision.data.prepare import prepare_from_folders
 from kneevision.data.transforms import build_train_transform, build_val_transform
 from kneevision.training.losses import OrdinalLoss, ordinal_to_class
 from kneevision.utils.logging import setup_logger
+from kneevision.utils.helpers import set_seed, get_device
 
 logger = setup_logger("train_fusion")
 
@@ -38,10 +39,12 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--ordinal", action="store_true", default=True) # Always use ordinal for KL
     parser.add_argument("--unfreeze", action="store_true")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     args = parser.parse_args()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info(f"Device: {device}")
+    set_seed(args.seed)
+    device = get_device()
+    logger.info(f"Device: {device} | Seed: {args.seed}")
 
     logger.info("Loading models...")
     img_model = load_image_model(args.image_model, device, num_classes=5)

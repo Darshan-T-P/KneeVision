@@ -89,8 +89,21 @@ def test_get_prediction_ordinal():
     x = torch.randn(1, 3, 224, 224)
     pred, conf, logits = get_prediction(model, x, torch.device("cpu"))
     assert 0 <= pred <= 4
-    assert conf == 1.0  # ordinal always returns 1.0
+    # Previously hardcoded to 1.0 regardless of actual uncertainty -- fixed
+    # to derive a real per-class probability via ordinal_to_probs(), the
+    # same conversion the API already uses for ordinal JSON responses.
+    assert 0.0 <= conf <= 1.0
     assert logits.shape == (1, 4)
+
+
+def test_get_prediction_ordinal_confidence_matches_ordinal_to_probs():
+    from kneevision.training.losses import ordinal_to_probs
+
+    model = _FakeOrdinalModel()
+    x = torch.randn(1, 3, 224, 224)
+    pred, conf, logits = get_prediction(model, x, torch.device("cpu"))
+    expected = ordinal_to_probs(logits)[0, pred].item()
+    assert abs(conf - expected) < 1e-6
 
 
 def test_get_prediction_deterministic():

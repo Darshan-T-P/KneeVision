@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import numpy as np
 from PIL import Image
 from .base import overlay_heatmap, get_prediction
-from kneevision.training.losses import ordinal_to_class
+from kneevision.training.losses import ordinal_to_class, ordinal_to_probs
 
 
 class ScoreCAM:
@@ -45,7 +45,16 @@ class ScoreCAM:
             with torch.inference_mode():
                 logits = self.model(masked)
                 if getattr(self.model, "ordinal", False):
-                    score = (ordinal_to_class(logits) == class_idx).float()
+                    # Was a hard 0/1 indicator (masked prediction == target
+                    # grade, exactly), which is far noisier than the
+                    # continuous softmax score used on the non-ordinal
+                    # branch below -- most masked channels would score
+                    # exactly 0 even when they partially support the target
+                    # grade. Use the predicted grade's own probability mass
+                    # (ordinal_to_probs) for a continuous, comparable score.
+                    probs = ordinal_to_probs(logits)
+                    target_idx = min(class_idx, probs.shape[1] - 1)
+                    score = probs[0, target_idx]
                 else:
                     score = F.softmax(logits, dim=1)[0, class_idx]
             weights[i] = score
