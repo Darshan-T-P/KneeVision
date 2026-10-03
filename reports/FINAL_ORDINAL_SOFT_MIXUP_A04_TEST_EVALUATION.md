@@ -23,6 +23,9 @@
 | Macro F1 | 0.626911 |
 | Weighted F1 | 0.645963 |
 | Linear weighted kappa | 0.683071 |
+| Expected Calibration Error (ECE) | 0.049575 |
+| Brier score (macro, mean OvR) | 0.094714 |
+| Brier score (multiclass, sum OvR) | 0.473570 |
 
 ## Per-class results (KL0–KL4)
 | Class | Precision | Recall | F1 | Support |

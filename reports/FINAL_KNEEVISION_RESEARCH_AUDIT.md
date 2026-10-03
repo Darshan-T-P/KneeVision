@@ -305,8 +305,11 @@ Because individual patients often contribute bilateral knee radiographs (left an
 | **Within-2 Accuracy (%)** | 99.94% | **100.00%** | **$+0.06\%$** | **$+0.06\%$** |
 | **Macro-F1 Score** | 0.5566 | **0.6269** | **$+0.0703$** | **$+12.63\%$** |
 | **Linear Weighted Kappa** | 0.6227 | **0.6831** | **$+0.0604$** | **$+9.70\%$** |
+| **Expected Calibration Error (ECE)** | — | **0.0496** (4.96%) | — | — |
+| **Brier Score (macro OvR)** | — | **0.0947** | — | — |
+| **Brier Score (multiclass)** | — | **0.4736** | — | — |
 
-*All arithmetic checked and cross-verified against `models/final_ordinal_soft_mixup_a04_test.json` and `reports/final_results_table.csv`.*
+*All arithmetic checked and cross-verified against `models/final_ordinal_soft_mixup_a04_test.json`, `models/final_ordinal_soft_mixup_a04_test.predictions.csv`, and `reports/final_results_table.csv`. Calibration metrics computed with closed upper bin boundary on true test posterior probabilities.*
 
 ---
 

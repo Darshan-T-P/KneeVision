@@ -229,6 +229,12 @@ def main() -> None:
         "macro_f1": metrics["macro_f1"],
         "weighted_f1": metrics["weighted_f1"],
         "linear_kappa": metrics["kappa_linear"],
+        "ece": metrics.get("ece"),
+        "brier_macro": metrics.get("brier_macro"),
+        "brier_multiclass": metrics.get("brier_multiclass"),
+        "brier_per_class": {
+            f"KL{c}": metrics.get(f"brier_KL{c}") for c in range(5) if f"brier_KL{c}" in metrics
+        },
         "per_class": per_class,
         "confusion_matrix": [row.tolist() for row in cm],
         "class_order": CLASS_NAMES,
@@ -242,6 +248,8 @@ def main() -> None:
     print(f"Within-1: {m['within_1_accuracy']:.4f}  |  Within-2: {m['within_2_accuracy']:.4f}")
     print(f"Exact accuracy: {m['exact_accuracy']:.4f}  |  Linear kappa: {m['kappa_linear']:.4f}")
     print(f"Macro P/R/F1: {m['macro_precision']:.4f}/{m['macro_recall']:.4f}/{m['macro_f1']:.4f}  |  Weighted F1: {m['weighted_f1']:.4f}")
+    if "ece" in m:
+        print(f"ECE: {m['ece']:.4f}  |  Brier (macro): {m.get('brier_macro', 0.0):.4f}  |  Brier (multiclass): {m.get('brier_multiclass', 0.0):.4f}")
     print(f"\n{report_text}")
     hdr = " ".join(f"{c:>6}" for c in CLASS_NAMES)
     print("Confusion matrix (rows=true, cols=predicted):")
@@ -327,6 +335,13 @@ def main() -> None:
                 "test_weighted_f1": metrics["weighted_f1"],
                 "test_linear_kappa": metrics["kappa_linear"],
             }
+            if "ece" in metrics and metrics["ece"] is not None:
+                test_metrics_to_log["test_ece"] = float(metrics["ece"])
+            if "brier_macro" in metrics and metrics["brier_macro"] is not None:
+                test_metrics_to_log["test_brier_macro"] = float(metrics["brier_macro"])
+            if "brier_multiclass" in metrics and metrics["brier_multiclass"] is not None:
+                test_metrics_to_log["test_brier_multiclass"] = float(metrics["brier_multiclass"])
+
             for k, v in test_metrics_to_log.items():
                 client.log_metric(args.source_run_id, k, v)
 
@@ -367,6 +382,14 @@ def _markdown(report: dict, m: dict, cm: np.ndarray, report_text: str, error_ana
         f"| Macro F1 | {m['macro_f1']:.6f} |",
         f"| Weighted F1 | {m['weighted_f1']:.6f} |",
         f"| Linear weighted kappa | {m['kappa_linear']:.6f} |",
+    ]
+    if "ece" in m and m["ece"] is not None:
+        lines.append(f"| Expected Calibration Error (ECE) | {m['ece']:.6f} |")
+    if "brier_macro" in m and m["brier_macro"] is not None:
+        lines.append(f"| Brier score (macro, mean OvR) | {m['brier_macro']:.6f} |")
+    if "brier_multiclass" in m and m["brier_multiclass"] is not None:
+        lines.append(f"| Brier score (multiclass, sum OvR) | {m['brier_multiclass']:.6f} |")
+    lines += [
         "",
         "## Per-class results (KL0–KL4)",
         "| Class | Precision | Recall | F1 | Support |",
