@@ -96,6 +96,11 @@ def parse_args() -> argparse.Namespace:
                              "Pass this flag on any NEW evaluation run so future post-hoc analyses "
                              "(e.g. per-patient or per-demographic breakdowns) don't need to re-derive "
                              "everything from the aggregate confusion matrix alone.")
+    parser.add_argument("--allow-non-ordinal", action="store_true",
+                        help="Allow evaluation of non-ordinal (softmax/focal) checkpoints. "
+                             "Uses torch.softmax for class probabilities and argmax for predictions "
+                             "instead of ordinal_to_probs / ordinal_to_class. "
+                             "Results are written to the same JSON/MD format for comparability.")
     return parser.parse_args()
 
 
@@ -124,8 +129,10 @@ def main() -> None:
 
     device = get_device()
     model = load_trained_model(checkpoint_path, device, num_classes=5)
-    if not getattr(model, "ordinal", False):
-        raise SystemExit(f"Checkpoint {checkpoint_path} was not reconstructed as an ordinal (CORAL) model")
+    is_ordinal = getattr(model, "ordinal", False)
+    if not is_ordinal and not args.allow_non_ordinal:
+        raise SystemExit(f"Checkpoint {checkpoint_path} was not reconstructed as an ordinal (CORAL) model. "
+                         f"Pass --allow-non-ordinal to evaluate focal/softmax checkpoints.")
     model.eval()
     print(f"Loaded {checkpoint_path} ({model.model_name}, ordinal={model.ordinal}, {sum(p.numel() for p in model.parameters()):,} params) on {device}")
     print(f"Checkpoint SHA-256 before evaluation: {sha256_before}")
@@ -143,8 +150,14 @@ def main() -> None:
     for images, batch_labels in tqdm(test_loader, desc="Test inference"):
         images = images.to(device)
         logits = model(images)
-        preds.extend(ordinal_to_class(logits).cpu().tolist())
-        probs_list.extend(ordinal_to_probs(logits).cpu().tolist())
+        if is_ordinal:
+            preds.extend(ordinal_to_class(logits).cpu().tolist())
+            probs_list.extend(ordinal_to_probs(logits).cpu().tolist())
+        else:
+            import torch.nn.functional as F
+            softmax_probs = F.softmax(logits, dim=1)
+            preds.extend(softmax_probs.argmax(dim=1).cpu().tolist())
+            probs_list.extend(softmax_probs.cpu().tolist())
         labels.extend(batch_labels.tolist())
 
     preds = np.asarray(preds)
@@ -210,6 +223,7 @@ def main() -> None:
         "epoch": epoch,
         "seed": seed,
         "tag": tag,
+        "is_ordinal": is_ordinal,
         "source_run_id": args.source_run_id,
         "split": "test",
         "sample_count": int(len(test_paths)),
@@ -360,7 +374,7 @@ def _markdown(report: dict, m: dict, cm: np.ndarray, report_text: str, error_ana
         f"# {report.get('tag', 'CORAL/DenseNet121')} — Frozen Held-Out TEST Evaluation",
         "",
         "## Experiment identity",
-        f"- Model: DenseNet121 + CORAL ordinal head",
+        f"- Model: DenseNet121 + {'CORAL ordinal head' if report.get('is_ordinal') else 'focal loss / softmax head'}",
         f"- Checkpoint: `{report['checkpoint']}`",
         f"- Checkpoint SHA-256: `{report.get('checkpoint_sha256', 'N/A')}`",
         f"- Training epoch: {report['epoch']}",
