@@ -66,9 +66,9 @@ PALETTE = {
 
 def plot_fig1_architecture_schematic():
     """Fig 1: Conceptual Architecture & Continuous Cumulative Target Formulation."""
-    fig, ax = plt.subplots(figsize=(12, 6.5))
+    fig, ax = plt.subplots(figsize=(12, 7.2))
     ax.set_xlim(0, 12)
-    ax.set_ylim(0, 6.5)
+    ax.set_ylim(0, 7.2)
     ax.axis("off")
 
     def draw_box(x, y, w, h, title, subtitle="", color="#e8f4f8", border="#1f77b4", lw=1.5):
@@ -95,8 +95,8 @@ def plot_fig1_architecture_schematic():
             ax.text((x1 + x2) / 2, (y1 + y2) / 2 + 0.15, label, ha="center", va="bottom",
                     fontsize=8.5, color="#2c3e50", fontweight="semibold")
 
-    # Title
-    ax.text(6.0, 6.1, "DenseNet121 + CORAL Architecture with Soft Ordinal MixUp",
+    # Title (own band, clear of the "Continuous Cumulative Targets" box below)
+    ax.text(6.0, 6.85, "DenseNet121 + CORAL Architecture with Soft Ordinal MixUp",
             ha="center", va="center", fontsize=13, fontweight="bold", color="#1a252f")
 
     # Inputs & MixUp
@@ -144,7 +144,7 @@ def plot_fig1_architecture_schematic():
 
 
 def plot_fig2_ablation_comparison():
-    """Fig 2: Validation QWK and MAE Across Ablation Configurations."""
+    """Fig 2: Validation QWK and MAE Across Ablation Configurations (two single-axis panels)."""
     models = [
         "Baseline CORAL\n(Hard MixUp)",
         "Focal Loss\n(No MixUp)",
@@ -158,53 +158,42 @@ def plot_fig2_ablation_comparison():
     maes = [0.4661, 0.4467, 0.4734, 0.4697, 0.4262, 0.4298, 0.4334]
 
     x = np.arange(len(models))
-    width = 0.36
+    width = 0.58
 
-    fig, ax1 = plt.subplots(figsize=(11, 5.5))
+    # Two single-axis panels instead of a dual-axis (twinx) chart: QWK and MAE
+    # have different scales and "better" directions, so they are never drawn
+    # on a shared axis.
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
 
-    # QWK Bars
     colors_qwk = ["#7f8c8d", "#95a5a6", "#bdc3c7", "#3498db", "#2980b9", "#1b4f72", "#5499c7"]
-    bars1 = ax1.bar(x - width / 2, qwks, width, label="Val QWK (Higher is better)",
-                    color=colors_qwk, edgecolor="#2c3e50", linewidth=0.8)
-
-    ax1.set_ylabel("Validation Quadratic Weighted Kappa (QWK)", color="#1b4f72", fontsize=11, fontweight="bold")
+    bars1 = ax1.bar(x, qwks, width, color=colors_qwk, edgecolor="#2c3e50", linewidth=0.8)
+    ax1.set_ylabel("Validation QWK (higher is better)", fontsize=11, fontweight="bold")
     ax1.set_ylim(0.70, 0.83)
-    ax1.tick_params(axis="y", labelcolor="#1b4f72")
     ax1.grid(axis="y", linestyle="--", alpha=0.5)
-
-    # MAE Bars on secondary axis
-    ax2 = ax1.twinx()
-    colors_mae = ["#f5b7b1", "#f1948a", "#ec7063", "#e59866", "#d35400", "#922b21", "#ba4a00"]
-    bars2 = ax2.bar(x + width / 2, maes, width, label="Val MAE (Lower is better)",
-                    color=colors_mae, edgecolor="#641e16", linewidth=0.8, hatch="//")
-
-    ax2.set_ylabel("Validation Mean Absolute Error (MAE)", color="#922b21", fontsize=11, fontweight="bold")
-    ax2.set_ylim(0.38, 0.52)
-    ax2.tick_params(axis="y", labelcolor="#922b21")
-    ax2.spines["right"].set_visible(True)
-
     ax1.set_xticks(x)
-    ax1.set_xticklabels(models, fontsize=9.5)
-    ax1.set_title("Ablation Study: Validation Performance Across Loss & MixUp Configurations",
-                  fontsize=12, fontweight="bold", pad=14)
-
-    # Value labels
+    ax1.set_xticklabels(models, fontsize=9)
+    ax1.set_title("Quadratic Weighted Kappa", fontsize=11.5, fontweight="bold", pad=10)
     for bar in bars1:
         h = bar.get_height()
         ax1.text(bar.get_x() + bar.get_width() / 2, h + 0.002, f"{h:.4f}",
-                 ha="center", va="bottom", fontsize=8.2, fontweight="bold", color="#1b4f72")
+                 ha="center", va="bottom", fontsize=8.5, fontweight="bold", color="#1b4f72")
 
+    colors_mae = ["#f5b7b1", "#f1948a", "#ec7063", "#e59866", "#d35400", "#922b21", "#ba4a00"]
+    bars2 = ax2.bar(x, maes, width, color=colors_mae, edgecolor="#641e16", linewidth=0.8, hatch="//")
+    ax2.set_ylabel("Validation MAE (lower is better)", fontsize=11, fontweight="bold")
+    ax2.set_ylim(0.38, 0.52)
+    ax2.grid(axis="y", linestyle="--", alpha=0.5)
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(models, fontsize=9)
+    ax2.set_title("Mean Absolute Error", fontsize=11.5, fontweight="bold", pad=10)
     for bar in bars2:
         h = bar.get_height()
         ax2.text(bar.get_x() + bar.get_width() / 2, h + 0.003, f"{h:.4f}",
-                 ha="center", va="bottom", fontsize=8.2, fontweight="bold", color="#922b21")
+                 ha="center", va="bottom", fontsize=8.5, fontweight="bold", color="#922b21")
 
-    # Legend
-    lines1, labels1 = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left", framealpha=0.9)
-
-    fig.tight_layout()
+    fig.suptitle("Ablation Study: Validation Performance Across Loss & MixUp Configurations",
+                  fontsize=12.5, fontweight="bold")
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
     out_path = OUTPUT_DIR / "fig2_ablation_comparison.png"
     fig.savefig(out_path)
     plt.close(fig)
@@ -226,7 +215,7 @@ def plot_fig3_test_confusion_matrix():
     fig, ax = plt.subplots(figsize=(7.5, 6.5))
     im = ax.imshow(cm_norm, interpolation="nearest", cmap="Blues", vmin=0, vmax=1)
 
-    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.17)
     cbar.set_label("Row-Normalized Recall", rotation=270, labelpad=15, fontweight="semibold")
 
     ax.set_xticks(np.arange(len(classes)))
@@ -250,10 +239,11 @@ def plot_fig3_test_confusion_matrix():
                     color=text_color, fontsize=9.5,
                     fontweight="bold" if i == j else "normal")
 
-    # Annotate class totals on right
+    # Annotate class totals on right (own margin, clear of the colorbar)
     row_sums = cm.sum(axis=1)
     for i, s in enumerate(row_sums):
-        ax.text(4.7, i, f"n={s}", va="center", fontsize=9, color="#555555", fontstyle="italic")
+        ax.text(4.62, i, f"n={s}", va="center", ha="left", fontsize=9, color="#555555",
+                fontstyle="italic", clip_on=False)
 
     fig.tight_layout()
     out_path = OUTPUT_DIR / "fig3_test_confusion_matrix.png"
@@ -459,8 +449,9 @@ def plot_fig7_reliability_diagram():
                 bin_accs.append(c_labels[mask].mean())
                 bin_confs.append(c_probs[mask].mean())
 
+        c_brier = np.mean((c_probs - c_labels) ** 2)
         ax.plot(bin_confs, bin_accs, marker="o", lw=1.8, markersize=5,
-                color=colors[c], label=f"KL{c} (OvR Brier: {df[f'prob_KL{c}'].var():.3f})")
+                color=colors[c], label=f"KL{c} (OvR Brier: {c_brier:.3f})")
 
     ax.set_xlabel("Mean Predicted Probability (Confidence)", fontsize=11, fontweight="bold", labelpad=8)
     ax.set_ylabel("Empirical True Fraction (Accuracy)", fontsize=11, fontweight="bold", labelpad=8)
