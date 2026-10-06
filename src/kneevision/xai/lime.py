@@ -52,24 +52,30 @@ def explain(
             if getattr(model, "ordinal", False):
                 scores[i] = 1.0 if ordinal_to_class(logits).item() == pred else 0.0
             else:
-                scores[i] = logits[0, pred].item()
+                probs = torch.softmax(logits, dim=1)
+                scores[i] = probs[0, pred].item()
 
-    kernel_width = 0.25
+    kernel_width = float(np.sqrt(n_segments) * 0.5)
     weights = np.exp(-(distances**2) / (kernel_width**2))
 
     scores_norm = scores - scores.min()
-    scores_norm = scores_norm / (scores_norm.max() + 1e-8)
+    if scores_norm.max() > 1e-8:
+        scores_norm = scores_norm / scores_norm.max()
 
     X = perturbations
     y = scores_norm
     X_reg = X.T * weights
-    reg = np.eye(n_segments) * 1e-6
+    reg = np.eye(n_segments) * 1e-4
     theta = np.linalg.lstsq(X_reg @ X + reg, X_reg @ y, rcond=None)[0]
 
     importance_map = np.zeros((h, w), dtype=np.float32)
     for seg_id in range(n_segments):
         importance_map[segments == seg_id] = theta[seg_id]
 
-    importance_map = (importance_map - importance_map.min()) / (importance_map.max() - importance_map.min() + 1e-8)
+    ptp = importance_map.max() - importance_map.min()
+    if ptp > 1e-8:
+        importance_map = (importance_map - importance_map.min()) / ptp
+    else:
+        importance_map = np.zeros_like(importance_map)
 
     return pred, confidence, importance_map, segments.astype(np.float32)
