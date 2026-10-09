@@ -1,8 +1,10 @@
 import copy
+
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+
 from kneevision.evaluation.report import compute_metrics
 from kneevision.training.losses import ordinal_to_class
 from kneevision.utils.helpers import get_rng_state

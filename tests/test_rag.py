@@ -2,11 +2,14 @@ from pathlib import Path
 
 import pytest
 
-from kneevision.rag.corpus import load_guideline_chunks, _parse_frontmatter, _split_sections
-from kneevision.rag.retriever import GuidelineRetriever
+from kneevision.rag.corpus import (
+    _parse_frontmatter,
+    _split_sections,
+    load_guideline_chunks,
+)
 from kneevision.rag.llm import OllamaClient, OllamaUnavailableError
-from kneevision.rag.pipeline import RehabRecommender, DISCLAIMER
-
+from kneevision.rag.pipeline import DISCLAIMER, RehabRecommender
+from kneevision.rag.retriever import GuidelineRetriever
 
 SAMPLE_KL2 = """---
 kl_grade: 2
@@ -124,13 +127,39 @@ def test_recommender_uses_llm_when_available(guidelines_dir):
     class FakeLLM(OllamaClient):
         def generate(self, prompt: str) -> str:
             assert "Kellgren-Lawrence grade: 2" in prompt
+            assert "do not turn 'may' into 'should'" in prompt
+            assert "being overweight or obese" in prompt
+            assert "never infer or state another KL grade" in prompt
             return "Mock synthesized recommendation."
 
     recommender = RehabRecommender.from_guidelines_dir(guidelines_dir, llm=FakeLLM())
     result = recommender.recommend(kl_grade=2)
 
     assert result.used_llm is True
-    assert result.synthesis == "Mock synthesized recommendation."
+    assert result.synthesis.startswith("Mock synthesized recommendation.")
+    assert "Grade-specific clinical safeguard:" in result.synthesis
+
+
+@pytest.mark.parametrize(
+    ("grade", "required_text"),
+    [
+        (0, "even with KL 0 imaging"),
+        (1, "even with KL 1 imaging"),
+        (2, "does not indicate surgical referral"),
+        (3, "persist despite optimized care"),
+        (4, "orthopaedic specialist evaluation"),
+    ],
+)
+def test_recommender_preserves_grade_specific_safeguards(guidelines_dir, grade, required_text):
+    class IncompleteLLM(OllamaClient):
+        def generate(self, prompt: str) -> str:
+            return "Generic exercise advice."
+
+    recommender = RehabRecommender.from_guidelines_dir(guidelines_dir, llm=IncompleteLLM())
+    result = recommender.recommend(kl_grade=grade, patient_context="moderate pain")
+
+    assert result.used_llm is True
+    assert required_text in result.synthesis
 
 
 def test_recommender_rejects_invalid_kl_grade(guidelines_dir):

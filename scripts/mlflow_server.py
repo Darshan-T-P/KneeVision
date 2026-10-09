@@ -3,8 +3,8 @@
 Usage:
     uv run python scripts/mlflow_server.py server --port 5000
 """
-import importlib.abc as abc
 import importlib.resources.abc as resources_abc
+from importlib import abc
 
 if not hasattr(abc, "Traversable"):
     abc.Traversable = resources_abc.Traversable

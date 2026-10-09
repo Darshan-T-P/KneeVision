@@ -16,48 +16,38 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import numpy as np
-import torch
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-
-from kneevision.config.settings import RAW_DATA_DIR, BATCH_SIZE, PROJECT_ROOT
-from kneevision.models.image_model import load_trained_model
-from kneevision.data.dataset import KneeXRayDataset
-from kneevision.data.prepare import get_paths_and_labels
-from kneevision.data.transforms import val_transform
-from kneevision.evaluation.report import compute_metrics, compute_confusion_matrix, classification_report_text
-from kneevision.training.losses import ordinal_to_class
-from kneevision.utils.helpers import get_device
-
 import argparse
 import hashlib
-import json
-import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from kneevision.config.settings import RAW_DATA_DIR, BATCH_SIZE, PROJECT_ROOT, MLFLOW_ENABLED
-from kneevision.models.image_model import load_trained_model
+from kneevision.config.settings import BATCH_SIZE, PROJECT_ROOT, RAW_DATA_DIR
 from kneevision.data.dataset import KneeXRayDataset
 from kneevision.data.prepare import get_paths_and_labels
 from kneevision.data.transforms import val_transform
 from kneevision.evaluation.report import (
-    compute_metrics,
-    compute_confusion_matrix,
     classification_report_text,
+    compute_confusion_matrix,
+    compute_metrics,
+)
+from kneevision.models.image_model import load_trained_model
+from kneevision.training.losses import ordinal_to_class
+from kneevision.utils.helpers import get_device
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+
+from kneevision.config.settings import MLFLOW_ENABLED
+from kneevision.evaluation.report import (
     confusion_matrix_plot,
     ordinal_error_plot,
 )
-from kneevision.training.losses import ordinal_to_class, ordinal_to_probs
-from kneevision.utils.helpers import get_device
+from kneevision.training.losses import ordinal_to_probs
 
 DEFAULT_CHECKPOINT = PROJECT_ROOT / "models" / "best_densenet121_ordinal.pt"
 EXPECTED_SAMPLES = 1656
@@ -119,7 +109,7 @@ def main() -> None:
     if meta_json_path.exists():
         try:
             meta = json.loads(meta_json_path.read_text())
-        except Exception as exc:
+        except (OSError, json.JSONDecodeError) as exc:
             print(f"Warning: could not parse {meta_json_path}: {exc}")
 
     epoch = meta.get("epoch", 23 if checkpoint_path.name == "best_densenet121_ordinal.pt" else None)
@@ -226,12 +216,12 @@ def main() -> None:
         "is_ordinal": is_ordinal,
         "source_run_id": args.source_run_id,
         "split": "test",
-        "sample_count": int(len(test_paths)),
+        "sample_count": len(test_paths),
         "class_counts": [int(s) for s in supports],
-        "unique_patients": int(len(test_patients)),
+        "unique_patients": len(test_patients),
         "patient_overlap": {
-            "train": int(len(train_patients & test_patients)),
-            "val": int(len(val_patients & test_patients)),
+            "train": len(train_patients & test_patients),
+            "val": len(val_patients & test_patients),
         },
         "qwk": metrics["qwk"],
         "mae": metrics["mae"],
@@ -365,7 +355,7 @@ def main() -> None:
             for p in plot_paths:
                 client.log_artifact(args.source_run_id, str(p))
             print(f"Successfully associated test metrics and artifacts with MLflow run {args.source_run_id}")
-        except Exception as exc:
+        except (OSError, ValueError, RuntimeError) as exc:
             print(f"Warning: MLflow logging failed: {exc}")
 
 
@@ -457,11 +447,11 @@ def _markdown(report: dict, m: dict, cm: np.ndarray, report_text: str, error_ana
         "- Checkpoint verified unchanged before and after evaluation.",
         "",
         "## Integrity statement",
-        f"This is a frozen held-out evaluation. The checkpoint `{report['checkpoint']}` "
+        (f"This is a frozen held-out evaluation. The checkpoint `{report['checkpoint']}` "
         f"(epoch {report['epoch']}, seed {report['seed']}, raw weights, validation selection: {report['selection']}) "
         "was selected exclusively using validation QWK. The test split was held out during training and model selection "
         "and used only for this final, single-pass evaluation. Test results were NOT used for model "
-        "selection or any form of tuning.",
+        "selection or any form of tuning."),
         "",
         "## Classification report",
         "```",

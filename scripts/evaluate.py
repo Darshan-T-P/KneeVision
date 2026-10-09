@@ -1,29 +1,35 @@
 import sys
 import time
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torchvision.transforms import functional as TF
 from tqdm import tqdm
-import numpy as np
 
-from kneevision.config.settings import RAW_DATA_DIR, BATCH_SIZE, MLFLOW_ENABLED, PROJECT_ROOT
-from kneevision.models.image_model import load_trained_model
+from kneevision.config.settings import (
+    BATCH_SIZE,
+    MLFLOW_ENABLED,
+    PROJECT_ROOT,
+    RAW_DATA_DIR,
+)
 from kneevision.data.dataset import KneeXRayDataset
 from kneevision.data.prepare import get_paths_and_labels
-from kneevision.data.transforms import val_transform, tta_transforms_list
+from kneevision.data.transforms import tta_transforms_list, val_transform
 from kneevision.evaluation.report import (
-    compute_metrics,
     classification_report_text,
+    compute_metrics,
     confusion_matrix_plot,
     write_artifacts,
 )
+from kneevision.models.image_model import load_trained_model
 from kneevision.training.losses import ordinal_to_class
 from kneevision.utils.helpers import get_device
 from kneevision.utils.logging import setup_logger
-from torchvision.transforms import functional as TF
 
 logger = setup_logger("evaluate")
 

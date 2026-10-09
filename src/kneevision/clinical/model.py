@@ -1,10 +1,10 @@
 from pathlib import Path
 
 import torch
-import torch.nn as nn
+from torch import nn
 from transformers import AutoModel, AutoTokenizer
 
-from kneevision.config.settings import CLINICAL_MODEL_NAME, CLINICAL_MAX_LENGTH
+from kneevision.config.settings import CLINICAL_MAX_LENGTH, CLINICAL_MODEL_NAME
 
 
 class ClinicalTextModel(nn.Module):

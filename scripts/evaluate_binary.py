@@ -18,17 +18,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numpy as np
 import torch
 import torch.nn.functional as F
+from evaluate import apply_tta
 from torch.utils.data import DataLoader
 
-from kneevision.config.settings import RAW_DATA_DIR, BATCH_SIZE, MLFLOW_ENABLED, PROJECT_ROOT
-from kneevision.models.image_model import load_trained_model
+from kneevision.config.settings import (
+    BATCH_SIZE,
+    MLFLOW_ENABLED,
+    PROJECT_ROOT,
+    RAW_DATA_DIR,
+)
 from kneevision.data.dataset import KneeXRayDataset
 from kneevision.data.prepare import get_paths_and_labels
-from kneevision.data.transforms import build_val_transform, build_tta_transforms
+from kneevision.data.transforms import build_tta_transforms, build_val_transform
 from kneevision.evaluation.report import classification_report_text, write_artifacts
+from kneevision.models.image_model import load_trained_model
 from kneevision.utils.helpers import get_device
 from kneevision.utils.logging import setup_logger
-from evaluate import apply_tta
 
 logger = setup_logger("evaluate_binary")
 
@@ -122,7 +127,7 @@ def main():
     default_acc = float((y_test == default_pred).mean())
     tuned_acc = float((y_test == tuned_pred).mean())
 
-    from sklearn.metrics import roc_auc_score, balanced_accuracy_score
+    from sklearn.metrics import balanced_accuracy_score, roc_auc_score
 
     auc = float(roc_auc_score(y_test, test_probs[:, 1]))
 

@@ -10,23 +10,30 @@ Produces:
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import numpy as np
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
-from sklearn.preprocessing import label_binarize
 import torch
 import torch.nn.functional as F
+from sklearn.metrics import (
+    auc,
+    average_precision_score,
+    precision_recall_curve,
+    roc_curve,
+)
+from sklearn.preprocessing import label_binarize
 from torch.utils.data import DataLoader
 
-from kneevision.config.settings import RAW_DATA_DIR, BATCH_SIZE
-from kneevision.models.image_model import load_trained_model
+from kneevision.config.settings import BATCH_SIZE, RAW_DATA_DIR
 from kneevision.data.dataset import KneeXRayDataset
 from kneevision.data.prepare import get_paths_and_labels
 from kneevision.data.transforms import val_transform
+from kneevision.models.image_model import load_trained_model
 from kneevision.utils.helpers import get_device
 
 OUT_DIR = Path("reports/curves")
@@ -77,9 +84,9 @@ def plot_multiclass_roc(labels, probs):
     n_classes = 5
     y_bin = label_binarize(labels, classes=list(range(n_classes)))
 
-    fpr = dict()
-    tpr = dict()
-    roc_auc = dict()
+    fpr = {}
+    tpr = {}
+    roc_auc = {}
 
     for i in range(n_classes):
         fpr[i], tpr[i], _ = roc_curve(y_bin[:, i], probs[:, i])
@@ -133,9 +140,9 @@ def plot_precision_recall_curves(labels, probs):
     n_classes = 5
     y_bin = label_binarize(labels, classes=list(range(n_classes)))
 
-    precision = dict()
-    recall = dict()
-    avg_precision = dict()
+    precision = {}
+    recall = {}
+    avg_precision = {}
 
     for i in range(n_classes):
         precision[i], recall[i], _ = precision_recall_curve(y_bin[:, i], probs[:, i])
@@ -261,7 +268,7 @@ def plot_ordinal_error_distance(labels, probs):
     exact_plus_1 = percentages[0] + percentages[1]
     ax.text(0.72, 0.82, f"Clinically Acceptable (Δ ≤ 1):\n{exact_plus_1:.1f}% of total cases",
             transform=ax.transAxes, fontsize=10, fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.5", facecolor="#ecfdf5", edgecolor="#059669", alpha=0.9))
+            bbox={"boxstyle": "round,pad=0.5", "facecolor": "#ecfdf5", "edgecolor": "#059669", "alpha": 0.9})
 
     out_path = OUT_DIR / "ordinal_error_distribution.png"
     fig.savefig(out_path, bbox_inches="tight")

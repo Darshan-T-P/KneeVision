@@ -1,9 +1,11 @@
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
 from PIL import Image
-from .base import overlay_heatmap, get_prediction
+
 from kneevision.training.losses import ordinal_to_class, ordinal_to_probs
+
+from .base import get_prediction, overlay_heatmap
 
 
 class ScoreCAM:
@@ -32,7 +34,7 @@ class ScoreCAM:
                 else:
                     class_idx = logits.argmax(dim=1).item()
 
-        B, C, H, W = self.activations.shape
+        _B, C, _H, _W = self.activations.shape
         activations = self.activations.detach()
 
         weights = torch.zeros(C, device=x.device)

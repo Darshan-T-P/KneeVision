@@ -7,10 +7,11 @@ Covers:
 - ordinal_error_plot(): smoke test
 - Integration with compute_metrics() (backward-compatible)
 """
-import numpy as np
-import pytest
 import sys
 from pathlib import Path
+
+import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -22,7 +23,6 @@ from kneevision.evaluation.report import (
     ordinal_error_plot,
     reliability_diagram,
 )
-
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ def perfect_preds():
 def off_by_one_preds():
     """All predictions are exactly 1 grade off (shifts grades up, wraps 4→4)."""
     labels = list(range(5)) * 20
-    preds = [min(4, l + 1) for l in labels]
+    preds = [min(4, label + 1) for label in labels]
     return labels, preds
 
 
@@ -117,8 +117,8 @@ class TestComputeCalibrationMetrics:
     def _perfect_probs(self, labels):
         n = len(labels)
         probs = np.zeros((n, 5))
-        for i, l in enumerate(labels):
-            probs[i, l] = 1.0
+        for i, label in enumerate(labels):
+            probs[i, label] = 1.0
         return probs
 
     def test_ece_perfect_calibration(self, perfect_preds):
@@ -290,11 +290,11 @@ class TestPlots:
     def test_reliability_diagram_saves_to_path(self, random_preds, tmp_path):
         labels, _, probs = random_preds
         out = tmp_path / "reliability.png"
-        fig = reliability_diagram(labels, probs, out_path=out)
+        reliability_diagram(labels, probs, out_path=out)
         assert out.exists()
 
     def test_ordinal_error_plot_saves_to_path(self, off_by_one_preds, tmp_path):
         labels, preds = off_by_one_preds
         out = tmp_path / "ordinal_error.png"
-        fig = ordinal_error_plot(labels, preds, out_path=out)
+        ordinal_error_plot(labels, preds, out_path=out)
         assert out.exists()

@@ -1,5 +1,6 @@
 import logging
 import sys
+
 from kneevision.config.settings import PROJECT_ROOT
 
 

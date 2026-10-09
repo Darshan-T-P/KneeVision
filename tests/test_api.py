@@ -5,13 +5,19 @@ curl + screenshots during development)."""
 import numpy as np
 import pytest
 import torch
-import torch.nn as nn
 from fastapi.testclient import TestClient
 from PIL import Image
+from torch import nn
 
 from kneevision.api import deps
 from kneevision.api.main import app
-from kneevision.rag import GuidelineChunk, GuidelineRetriever, OllamaClient, OllamaUnavailableError, RehabRecommender
+from kneevision.rag import (
+    GuidelineChunk,
+    GuidelineRetriever,
+    OllamaClient,
+    OllamaUnavailableError,
+    RehabRecommender,
+)
 
 
 class FakeImageModel(nn.Module):

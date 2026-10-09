@@ -1,18 +1,24 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.utils.data import DataLoader
 
-from kneevision.config.settings import RAW_DATA_DIR, BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS
-from kneevision.models.image_model import KneeXRayClassifier
+from kneevision.config.settings import (
+    BATCH_SIZE,
+    LEARNING_RATE,
+    NUM_EPOCHS,
+    RAW_DATA_DIR,
+)
 from kneevision.data.dataset import KneeXRayDataset
-from kneevision.data.prepare import get_paths_and_labels, class_weights
+from kneevision.data.prepare import class_weights, get_paths_and_labels
 from kneevision.data.transforms import train_transform, val_transform
+from kneevision.models.image_model import KneeXRayClassifier
 from kneevision.training.trainer import train_epoch, validate
-from kneevision.utils.helpers import set_seed, get_device
+from kneevision.utils.helpers import get_device, set_seed
 from kneevision.utils.logging import setup_logger
 
 logger = setup_logger("train_xray")

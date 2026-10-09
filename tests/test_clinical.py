@@ -6,18 +6,20 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
+from download_oai import build_dataset
+from train_clinical import validate_best_checkpoint
+
+from kneevision.clinical.model import _infer_ordinal as _infer_clinical_ordinal
 from kneevision.clinical.prepare import (
-    generate_report,
-    generate_synthetic_dataset,
-    load_reports_from_grades,
-    load_reports_from_folders,
-    load_reports_csv,
     build_synthetic_splits,
     compose_clinical_report,
     compose_radiographic_findings,
+    generate_report,
+    generate_synthetic_dataset,
+    load_reports_csv,
+    load_reports_from_folders,
+    load_reports_from_grades,
 )
-from kneevision.clinical.model import _infer_ordinal as _infer_clinical_ordinal
-from download_oai import build_dataset
 
 
 def test_generate_report_contains_grade():
@@ -116,6 +118,42 @@ def test_infer_clinical_ordinal_from_checkpoint_shape():
     assert _infer_clinical_ordinal({}, num_classes=5) is False
 
 
+def test_validate_best_checkpoint_reloads_saved_weights(tmp_path):
+    class TinyClinicalModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.logits = torch.nn.Parameter(torch.tensor([
+                [5.0, 0.0, 0.0, 0.0, 0.0],
+                [5.0, 0.0, 0.0, 0.0, 0.0],
+            ]))
+
+        def forward(self, input_ids, attention_mask):
+            return self.logits[input_ids[:, 0]]
+
+    model = TinyClinicalModel()
+    best_state = {
+        "logits": torch.tensor([
+            [0.0, 5.0, 0.0, 0.0, 0.0],
+            [5.0, 0.0, 0.0, 0.0, 0.0],
+        ])
+    }
+    checkpoint_path = tmp_path / "best_clinical.pt"
+    torch.save(best_state, checkpoint_path)
+    loader = [{
+        "input_ids": torch.tensor([[0], [1]]),
+        "attention_mask": torch.ones(2, 1),
+        "labels": torch.tensor([1, 0]),
+    }]
+
+    _, accuracy, kappa, predictions, labels = validate_best_checkpoint(
+        model, checkpoint_path, loader, torch.nn.CrossEntropyLoss(), torch.device("cpu")
+    )
+
+    assert accuracy == 1.0
+    assert kappa == 1.0
+    assert predictions == labels == [1, 0]
+
+
 def _make_oai_raw(tmp_path, n=30):
     raw = tmp_path / "raw"
     raw.mkdir()
@@ -162,8 +200,8 @@ def test_build_dataset(tmp_path):
 def test_build_dataset_extracts_radiographic_findings(tmp_path):
     raw = tmp_path / "raw"
     raw.mkdir()
-    kxr = ["ID|SIDE|V00XRKL|V00XRJSM|V00XRJSL|V00XROSFM|V00XROSTM|V00XROSFL|V00XROSTL"
-           "|V00XRSCFM|V00XRSCTM|V00XRSCFL|V00XRSCTL|V00XRATTM|V00XRATTL",
+    kxr = [("ID|SIDE|V00XRKL|V00XRJSM|V00XRJSL|V00XROSFM|V00XROSTM|V00XROSFL|V00XROSTL"
+           "|V00XRSCFM|V00XRSCTM|V00XRSCFL|V00XRSCTL|V00XRATTM|V00XRATTL"),
            "00001|1: Right|3: 3|2: 2|0: 0|1: 1|3: 3|0: 0|0: 0|1: 1|2: 2|0: 0|0: 0|2: 2|0: 0"]
     clin = ["ID|V00AGE", "00001|60"]
     (raw / "kxr_sq_bu00.txt").write_text("\n".join(kxr) + "\n")

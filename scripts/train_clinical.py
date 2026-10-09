@@ -1,28 +1,34 @@
 import sys
 import time
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import argparse
+
 import torch
+from sklearn.metrics import classification_report, cohen_kappa_score
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from sklearn.metrics import classification_report, cohen_kappa_score
 
-from kneevision.config.settings import (
-    CLINICAL_DATA_DIR, CLINICAL_MAX_LENGTH, CLINICAL_BATCH_SIZE,
-    MODELS_DIR, MLFLOW_ENABLED,
-)
-from kneevision.clinical.model import ClinicalTextModel
 from kneevision.clinical.dataset import ClinicalTextDataset
+from kneevision.clinical.model import ClinicalTextModel
 from kneevision.clinical.prepare import (
-    load_reports_from_folders, load_reports_csv,
     build_synthetic_splits,
+    load_reports_csv,
+    load_reports_from_folders,
 )
-from kneevision.data.prepare import get_splits, class_weights
-from kneevision.utils.helpers import set_seed, get_device
-from kneevision.utils.logging import setup_logger
+from kneevision.config.settings import (
+    CLINICAL_BATCH_SIZE,
+    CLINICAL_DATA_DIR,
+    CLINICAL_MAX_LENGTH,
+    MLFLOW_ENABLED,
+    MODELS_DIR,
+)
+from kneevision.data.prepare import class_weights, get_splits
 from kneevision.training.losses import FocalLoss
+from kneevision.utils.helpers import get_device, set_seed
+from kneevision.utils.logging import setup_logger
 
 logger = setup_logger("train_clinical")
 
@@ -31,7 +37,7 @@ if MLFLOW_ENABLED:
     tracker = MLflowTracker()
 
 
-def validate(model, loader, criterion, device, is_ordinal=False) -> tuple[float, float, list, list]:
+def validate(model, loader, criterion, device, is_ordinal=False) -> tuple[float, float, float, list[int], list[int]]:
     model.eval()
     total_loss, all_preds, all_labels = 0.0, [], []
     with torch.inference_mode():
@@ -51,6 +57,12 @@ def validate(model, loader, criterion, device, is_ordinal=False) -> tuple[float,
     acc = sum(p == t for p, t in zip(all_preds, all_labels)) / len(all_labels)
     kappa = cohen_kappa_score(all_labels, all_preds, weights="quadratic")
     return total_loss / len(loader), acc, kappa, all_preds, all_labels
+
+
+def validate_best_checkpoint(model, checkpoint_path, loader, criterion, device, is_ordinal=False):
+    state = torch.load(checkpoint_path, map_location=device, weights_only=True)
+    model.load_state_dict(state)
+    return validate(model, loader, criterion, device, is_ordinal=is_ordinal)
 
 
 def main():
@@ -190,7 +202,14 @@ def main():
     logger.info("Best val kappa: %.4f -> %s", best_kappa, best_path)
 
     if test_loader is not None:
-        test_loss, test_acc, test_kappa, preds, labels = validate(model, test_loader, criterion, device, is_ordinal=args.ordinal)
+        if val_loader is not None:
+            _test_loss, test_acc, test_kappa, preds, labels = validate_best_checkpoint(
+                model, best_path, test_loader, criterion, device, is_ordinal=args.ordinal
+            )
+        else:
+            _test_loss, test_acc, test_kappa, preds, labels = validate(
+                model, test_loader, criterion, device, is_ordinal=args.ordinal
+            )
         logger.info("=" * 60)
         logger.info("TEST REPORT")
         logger.info("=" * 60)

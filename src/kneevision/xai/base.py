@@ -1,10 +1,11 @@
+import matplotlib
 import numpy as np
 import torch
 import torch.nn.functional as F
-import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.cm as mcm
+
 from kneevision.training.losses import ordinal_to_class, ordinal_to_probs
 
 

@@ -3,11 +3,11 @@ import torch
 from kneevision.models.image_model import (
     AVAILABLE_MODELS,
     BACKBONE_REGISTRY,
+    ImprovedHead,
     KneeXRayClassifier,
+    _infer_aux_grades,
     _infer_model_name,
     _infer_ordinal,
-    _infer_aux_grades,
-    ImprovedHead,
 )
 
 

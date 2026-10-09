@@ -3,11 +3,11 @@ import torch
 from PIL import Image
 
 from kneevision.data.aux_dataset import (
-    KneeXRayAuxDataset,
     AUX_GRADE_FIELDS,
     AUX_IGNORE_INDEX,
-    collate_aux_batch,
+    KneeXRayAuxDataset,
     _grade_label,
+    collate_aux_batch,
 )
 
 

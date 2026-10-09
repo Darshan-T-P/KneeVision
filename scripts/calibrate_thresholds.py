@@ -216,8 +216,8 @@ def build_md_report(
         "",
         "## Baseline (argmax) Metrics",
         "",
-        f"| Metric | Value |",
-        f"|--------|-------|",
+        "| Metric | Value |",
+        "|--------|-------|",
         f"| QWK | {baseline_metrics['qwk']:.4f} |",
     ]
     for c in range(N_CLASSES):
@@ -225,10 +225,10 @@ def build_md_report(
 
     lines += [
         "",
-        f"## Calibrated Thresholds (search set)",
+        "## Calibrated Thresholds (search set)",
         "",
-        f"| Metric | Value |",
-        f"|--------|-------|",
+        "| Metric | Value |",
+        "|--------|-------|",
         f"| QWK | {calibrated_metrics.get('qwk', float('nan')):.4f} |",
     ]
     for c in range(N_CLASSES):

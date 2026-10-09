@@ -2,28 +2,59 @@ import json
 import re
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+import time
 
 import torch
 from torch.utils.data import DataLoader
-import time
 
 from kneevision.config.settings import (
-    RAW_DATA_DIR, BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS, IMAGE_SIZE,
-    WEIGHT_DECAY, MAX_GRAD_NORM, LABEL_SMOOTHING, MIXUP_ALPHA, SAMPLER_POWER,
-    EARLY_STOP_PATIENCE, CHECKPOINT_INTERVAL, MLFLOW_ENABLED, MODELS_DIR,
-    NUM_KL_CLASSES, SEED, NUM_WORKERS,
+    BATCH_SIZE,
+    CHECKPOINT_INTERVAL,
+    EARLY_STOP_PATIENCE,
+    IMAGE_SIZE,
+    LABEL_SMOOTHING,
+    LEARNING_RATE,
+    MAX_GRAD_NORM,
+    MIXUP_ALPHA,
+    MLFLOW_ENABLED,
+    MODELS_DIR,
+    NUM_EPOCHS,
+    NUM_KL_CLASSES,
+    NUM_WORKERS,
+    RAW_DATA_DIR,
+    SAMPLER_POWER,
+    SEED,
+    WEIGHT_DECAY,
 )
-from kneevision.models.image_model import KneeXRayClassifier
 from kneevision.data.dataset import KneeXRayDataset, MixUpDataset, make_weighted_sampler
-from kneevision.data.prepare import get_paths_and_labels, class_weights as make_class_weights, minority_labels
-from kneevision.data.transforms import train_transform, minority_transform, val_transform
-from kneevision.training.trainer import train_epoch, validate, EMA, EarlyStopping, save_checkpoint, load_checkpoint
-from kneevision.training.losses import FocalLoss, OrdinalLoss
+from kneevision.data.prepare import class_weights as make_class_weights
+from kneevision.data.prepare import get_paths_and_labels, minority_labels
+from kneevision.data.transforms import (
+    minority_transform,
+    train_transform,
+    val_transform,
+)
 from kneevision.evaluation.report import compute_confusion_matrix
+from kneevision.models.image_model import KneeXRayClassifier
+from kneevision.training.losses import FocalLoss, OrdinalLoss
+from kneevision.training.trainer import (
+    EMA,
+    EarlyStopping,
+    load_checkpoint,
+    save_checkpoint,
+    train_epoch,
+    validate,
+)
 from kneevision.utils.helpers import (
-    set_seed, get_device, seed_worker, get_git_commit,
-    get_environment_info, set_rng_state,
+    get_device,
+    get_environment_info,
+    get_git_commit,
+    seed_worker,
+    set_rng_state,
+    set_seed,
 )
 from kneevision.utils.logging import setup_logger
 
@@ -242,7 +273,7 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False,
     history = {}
 
     if resume and ckpt_path.exists():
-        ep, bk, hist, rng_state, ckpt_meta = load_checkpoint(
+        ep, bk, hist, rng_state, _ckpt_meta = load_checkpoint(
             ckpt_path, model, optimizer, scheduler, ema, early_stop)
         start_epoch = ep + 1
         best_kappa = bk
@@ -267,7 +298,7 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False,
         val_loss, val_qwk, val_metrics = validate(
             model, val_loader, criterion, device, use_kappa=True,
             return_metrics=True, num_classes=num_classes)
-        ema_loss, ema_qwk, ema_metrics = validate(
+        _ema_loss, ema_qwk, _ema_metrics = validate(
             ema.model, val_loader, criterion, device, use_kappa=True,
             return_metrics=True, num_classes=num_classes)
         scheduler.step()

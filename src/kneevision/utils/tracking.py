@@ -1,18 +1,30 @@
-import importlib.abc as abc
 import importlib.resources.abc as resources_abc
+import sys
+from importlib import abc
 from pathlib import Path
 
-if not hasattr(abc, "Traversable"):
+if sys.version_info >= (3, 14):
     abc.Traversable = resources_abc.Traversable
+
+from typing import Any
 
 import mlflow
 import torch
-from typing import Any
+
 from kneevision.config.settings import (
-    MLFLOW_TRACKING_URI, MLFLOW_EXPERIMENT_NAME, PROJECT_ROOT,
-    BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS, IMAGE_SIZE,
-    WEIGHT_DECAY, MAX_GRAD_NORM, LABEL_SMOOTHING, MIXUP_ALPHA,
-    SAMPLER_POWER, EARLY_STOP_PATIENCE,
+    BATCH_SIZE,
+    EARLY_STOP_PATIENCE,
+    IMAGE_SIZE,
+    LABEL_SMOOTHING,
+    LEARNING_RATE,
+    MAX_GRAD_NORM,
+    MIXUP_ALPHA,
+    MLFLOW_EXPERIMENT_NAME,
+    MLFLOW_TRACKING_URI,
+    NUM_EPOCHS,
+    PROJECT_ROOT,
+    SAMPLER_POWER,
+    WEIGHT_DECAY,
 )
 from kneevision.utils.logging import setup_logger
 

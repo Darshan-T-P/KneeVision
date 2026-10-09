@@ -1,7 +1,6 @@
 """Tests for config/settings.py — environment variable loading and defaults."""
 
-import kneevision.config.settings as settings
-
+from kneevision.config import settings
 
 # ── basic attribute presence ────────────────────────────────────────────────────
 

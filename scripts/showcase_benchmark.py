@@ -18,16 +18,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import numpy as np
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
 import torch
+from matplotlib.gridspec import GridSpec
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from kneevision.config.settings import RAW_DATA_DIR, OAI_DATA_DIR, BATCH_SIZE
+from kneevision.config.settings import BATCH_SIZE, OAI_DATA_DIR, RAW_DATA_DIR
 from kneevision.data.prepare import prepare_from_folders
 from kneevision.data.transforms import val_transform
 from kneevision.fusion.dataset import MultimodalDataset
@@ -238,13 +239,13 @@ def make_chart(results: dict, out_path: Path) -> None:
 
     # --- Pie chart (P>=0.75 scenario) ---
     ax_pie.set_facecolor("#1e293b")
-    gate_75 = results.get("confidence_75", list(gate_rs.values())[1] if len(gate_rs) > 1 else list(gate_rs.values())[0])
+    gate_75 = results.get("confidence_75", list(gate_rs.values())[1] if len(gate_rs) > 1 else next(iter(gate_rs.values())))
     auto_acc = gate_75["accuracy"]
     auto_cov = gate_75["coverage"]
     deferred = 1.0 - auto_cov
     auto_correct   = auto_cov * auto_acc
     auto_incorrect = auto_cov * (1 - auto_acc)
-    wedges, texts, autotexts = ax_pie.pie(
+    _wedges, _texts, autotexts = ax_pie.pie(
         [auto_correct, auto_incorrect, deferred],
         labels=["Auto — Correct", "Auto — Incorrect", "Deferred to Radiologist"],
         colors=["#10b981", "#f43f5e", "#f59e0b"],
@@ -253,7 +254,9 @@ def make_chart(results: dict, out_path: Path) -> None:
         wedgeprops={"edgecolor": "#0f172a", "linewidth": 1.5},
     )
     for at in autotexts:
-        at.set_color("#0f172a"); at.set_fontsize(7.5); at.set_fontweight("bold")
+        at.set_color("#0f172a")
+        at.set_fontsize(7.5)
+        at.set_fontweight("bold")
     ax_pie.set_title(
         f"P >= 0.75 Gating — {auto_cov:.0%} Auto-resolved\n({auto_acc:.1%} accuracy)",
         color="#e2e8f0", fontsize=9, fontweight="bold", pad=6,

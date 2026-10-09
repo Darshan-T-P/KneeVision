@@ -3,8 +3,8 @@ import platform
 import random
 import subprocess
 import sys
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import torch

@@ -146,8 +146,8 @@ def test_ordinal_training_loop_end_to_end(compare_models, toy_data, tmp_path, mo
         assert torch.equal(best_weights[k], expected[k]), f"selection deviated at {k}"
 
     # resume continues from the recorded epoch and restores the RNG
-    from kneevision.training.trainer import load_checkpoint
     from kneevision.models.image_model import KneeXRayClassifier
+    from kneevision.training.trainer import load_checkpoint
 
     model = KneeXRayClassifier("densenet121", 5, ordinal=True)
     ep, best, hist, rng, meta = load_checkpoint(
@@ -205,11 +205,11 @@ def test_resume_matches_fresh_run_bitwise(compare_models, toy_data, tmp_path, mo
            batch_size=4, patience=1, seed=7, num_workers=0)
     mb, ob, sb, eb, esb = _load(tmp_path / "b" / "models" / "checkpoint_densenet121_ordinal.pt")
 
-    for name in wa:
-        assert torch.equal(wa[name], mb.state_dict()[name]), f"model param diverged: {name}"
+    for name, expected_param in wa.items():
+        assert torch.equal(expected_param, mb.state_dict()[name]), f"model param diverged: {name}"
         assert torch.equal(wa_ema[name], eb.model.state_dict()[name]), f"EMA diverged: {name}"
-    for name, b in ba.items():
-        assert torch.equal(b, mb.state_dict()[name]), f"model buffer diverged: {name}"
+    for name, expected_buffer in ba.items():
+        assert torch.equal(expected_buffer, mb.state_dict()[name]), f"model buffer diverged: {name}"
     for name in ("exp_avg", "exp_avg_sq"):
         assert all(torch.equal(oa.state_dict()["state"][i][name],
                                ob.state_dict()["state"][i][name])
@@ -243,8 +243,8 @@ def test_validate_cli_rules(compare_models):
     import types
 
     def args(**kw):
-        base = dict(soft_ordinal_targets=False, ordinal=False, mixup_alpha=None,
-                    class_weights=None, label_smoothing=None, tag="")
+        base = {"soft_ordinal_targets": False, "ordinal": False, "mixup_alpha": None,
+                    "class_weights": None, "label_smoothing": None, "tag": ""}
         base.update(kw)
         return types.SimpleNamespace(**base)
 
@@ -300,7 +300,12 @@ def test_arms_receive_identical_mixed_batches_same_seed(compare_models, toy_data
     batches — the harness's per-run re-seeding already guarantees this, so the
     test proves the property rather than redesigning the RNG system."""
     from torch.utils.data import DataLoader
-    from kneevision.data.dataset import KneeXRayDataset, MixUpDataset, make_weighted_sampler
+
+    from kneevision.data.dataset import (
+        KneeXRayDataset,
+        MixUpDataset,
+        make_weighted_sampler,
+    )
     from kneevision.data.transforms import val_transform
     from kneevision.utils.helpers import set_seed
 

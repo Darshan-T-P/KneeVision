@@ -27,7 +27,12 @@ class OllamaClient:
         try:
             resp = requests.post(
                 f"{self.base_url}/api/generate",
-                json={"model": self.model, "prompt": prompt, "stream": False},
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0},
+                },
                 timeout=self.timeout,
             )
             resp.raise_for_status()

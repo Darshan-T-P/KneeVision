@@ -1,16 +1,16 @@
 """Tests for data/transforms.py — train, val, minority, TTA pipelines."""
-import torch
 import numpy as np
+import torch
 from PIL import Image
 
 from kneevision.data.transforms import (
-    build_val_transform,
     build_minority_transform,
     build_tta_transforms,
-    train_transform,
-    val_transform,
+    build_val_transform,
     minority_transform,
+    train_transform,
     tta_transforms_list,
+    val_transform,
 )
 
 

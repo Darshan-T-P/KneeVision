@@ -1,6 +1,6 @@
-from pathlib import Path
 import csv
 import random
+from pathlib import Path
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp"}
 
@@ -106,9 +106,9 @@ def prepare_oai(oai_root: Path, split_ratio: tuple = (0.7, 0.15, 0.15), seed: in
     n = len(combined)
     t1, t2 = int(n * split_ratio[0]), int(n * (split_ratio[0] + split_ratio[1]))
     return {
-        "train": (list(list(zip(*combined[:t1]))[0]), list(list(zip(*combined[:t1]))[1])),
-        "val":   (list(list(zip(*combined[t1:t2]))[0]), list(list(zip(*combined[t1:t2]))[1])),
-        "test":  (list(list(zip(*combined[t2:]))[0]),   list(list(zip(*combined[t2:]))[1])),
+        "train": (list(next(zip(*combined[:t1]))), list(list(zip(*combined[:t1]))[1])),
+        "val":   (list(next(zip(*combined[t1:t2]))), list(list(zip(*combined[t1:t2]))[1])),
+        "test":  (list(next(zip(*combined[t2:]))),   list(list(zip(*combined[t2:]))[1])),
     }
 
 
@@ -116,11 +116,11 @@ def _infer_oai_label(img_path: Path) -> int | None:
     """Try to extract KL grade from OAI filename or parent directory."""
     try:
         parent = img_path.parent.name
-        if parent.startswith("KL") or parent.startswith("kl"):
+        if parent.startswith(("KL", "kl")):
             return int(parent[2:])
         parts = img_path.stem.split("_")
         for p in parts:
-            if p.startswith("KL") or p.startswith("kl"):
+            if p.startswith(("KL", "kl")):
                 return int(p[2:])
     except (ValueError, IndexError):
         pass

@@ -1,13 +1,13 @@
 """Tests for data/dataset.py — KneeXRayDataset, MixUpDataset, make_weighted_sampler."""
+from pathlib import Path
+
 import numpy as np
 import pytest
 from PIL import Image
-from pathlib import Path
 from torch.utils.data import DataLoader, WeightedRandomSampler
 
 from kneevision.data.dataset import KneeXRayDataset, MixUpDataset, make_weighted_sampler
-from kneevision.data.transforms import val_transform, build_val_transform
-
+from kneevision.data.transforms import build_val_transform, val_transform
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -73,7 +73,7 @@ def test_dataset_no_transform_returns_pil(tmp_path):
     """Without any transform the dataset should still not crash."""
     paths, labels = _make_dataset(tmp_path, n=2)
     ds = KneeXRayDataset(paths, labels)
-    img, label = ds[0]
+    img, _label = ds[0]
     assert isinstance(img, Image.Image)
 
 

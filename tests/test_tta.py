@@ -1,11 +1,10 @@
 """Tests for evaluation/tta.py — Test-Time Augmentation prediction."""
-import torch
-import torch.nn as nn
-from PIL import Image
 import numpy as np
+import torch
+from PIL import Image
+from torch import nn
 
 from kneevision.evaluation.tta import tta_predict
-
 
 # ── Minimal fake models ────────────────────────────────────────────────────────
 
@@ -86,7 +85,7 @@ def test_tta_predict_ordinal_all_thresholds_exceeded():
     """All ordinal thresholds exceeded → grade 4."""
     model = _FakeOrdinalClassifier()
     img = _rand_pil()
-    pred, conf = tta_predict(model, img, device=torch.device("cpu"))
+    pred, _conf = tta_predict(model, img, device=torch.device("cpu"))
     assert pred == 4
 
 
