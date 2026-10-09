@@ -17,26 +17,47 @@ import json
 import sys
 import time
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import torch
-import torch.nn as nn
+from sklearn.metrics import cohen_kappa_score
+from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from sklearn.metrics import cohen_kappa_score
 
 from kneevision.config.settings import (
-    RAW_DATA_DIR, OAI_DATA_DIR, BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS, IMAGE_SIZE,
-    WEIGHT_DECAY, MAX_GRAD_NORM, SAMPLER_POWER, EARLY_STOP_PATIENCE, MLFLOW_ENABLED, MODELS_DIR,
+    BATCH_SIZE,
+    EARLY_STOP_PATIENCE,
+    IMAGE_SIZE,
+    LEARNING_RATE,
+    MAX_GRAD_NORM,
+    MLFLOW_ENABLED,
+    MODELS_DIR,
+    NUM_EPOCHS,
+    OAI_DATA_DIR,
+    RAW_DATA_DIR,
+    SAMPLER_POWER,
+    WEIGHT_DECAY,
 )
-from kneevision.models.image_model import KneeXRayClassifier, AVAILABLE_MODELS
-from kneevision.data.aux_dataset import KneeXRayAuxDataset, AUX_GRADE_FIELDS, AUX_NUM_GRADES, AUX_IGNORE_INDEX, collate_aux_batch
+from kneevision.data.aux_dataset import (
+    AUX_GRADE_FIELDS,
+    AUX_IGNORE_INDEX,
+    AUX_NUM_GRADES,
+    KneeXRayAuxDataset,
+    collate_aux_batch,
+)
 from kneevision.data.dataset import make_weighted_sampler
-from kneevision.data.prepare import get_paths_and_labels, class_weights, minority_labels
-from kneevision.data.transforms import train_transform, minority_transform, val_transform
-from kneevision.training.trainer import EMA, EarlyStopping
+from kneevision.data.prepare import class_weights, get_paths_and_labels, minority_labels
+from kneevision.data.transforms import (
+    minority_transform,
+    train_transform,
+    val_transform,
+)
+from kneevision.models.image_model import AVAILABLE_MODELS, KneeXRayClassifier
 from kneevision.training.losses import FocalLoss, OrdinalLoss, ordinal_to_class
-from kneevision.utils.helpers import set_seed, get_device
+from kneevision.training.trainer import EMA, EarlyStopping
+from kneevision.utils.helpers import get_device, set_seed
 from kneevision.utils.logging import setup_logger
 
 logger = setup_logger("train_xray_multitask")

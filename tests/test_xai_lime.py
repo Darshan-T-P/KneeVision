@@ -1,12 +1,12 @@
 """Tests for xai/lime.py — segment grid, LIME explain output contract."""
 import numpy as np
 import torch
-import torch.nn as nn
 from PIL import Image
+from torch import nn
 
-from kneevision.xai.lime import _segment_grid, explain as lime_explain
 from kneevision.data.transforms import val_transform
-
+from kneevision.xai.lime import _segment_grid
+from kneevision.xai.lime import explain as lime_explain
 
 # ── Minimal fake model ─────────────────────────────────────────────────────────
 
@@ -73,7 +73,7 @@ def test_lime_explain_returns_four_tuple():
 def test_lime_explain_pred_range():
     model = _FakeClassifier()
     img = _rand_pil()
-    pred, conf, importance, segments = lime_explain(
+    pred, conf, _importance, _segments = lime_explain(
         model, img, val_transform, torch.device("cpu"), grid_size=4, num_samples=20
     )
     assert 0 <= pred <= 4
@@ -112,7 +112,7 @@ def test_lime_explain_ordinal_model():
     """LIME should work the same way with ordinal models."""
     model = _FakeOrdinalClassifier()
     img = _rand_pil()
-    pred, conf, importance, segments = lime_explain(
+    pred, _conf, importance, _segments = lime_explain(
         model, img, val_transform, torch.device("cpu"), grid_size=3, num_samples=10
     )
     assert 0 <= pred <= 4

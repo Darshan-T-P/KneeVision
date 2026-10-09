@@ -2,10 +2,14 @@
 pattern in streamlit_app.py: load once on first request, reuse after."""
 from functools import lru_cache
 
-from kneevision.config.settings import MODELS_DIR, GUIDELINES_DIR
+from kneevision.clinical.model import ClinicalTextModel, load_trained_clinical_model
+from kneevision.config.settings import GUIDELINES_DIR, MODELS_DIR
+from kneevision.models.image_model import (
+    AVAILABLE_MODELS,
+    KneeXRayClassifier,
+    load_trained_model,
+)
 from kneevision.utils.helpers import get_device
-from kneevision.models.image_model import load_trained_model, KneeXRayClassifier, AVAILABLE_MODELS
-from kneevision.clinical.model import load_trained_clinical_model, ClinicalTextModel
 
 
 @lru_cache(maxsize=1)

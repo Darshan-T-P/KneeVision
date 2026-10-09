@@ -1,16 +1,16 @@
 import numpy as np
-from PIL import Image
 import pytest
 import torch
-import torch.nn as nn
+from PIL import Image
+from torch import nn
 
+from kneevision.fusion.dataset import MultimodalDataset
 from kneevision.fusion.model import (
     MultimodalFusionModel,
     _infer_fusion_ordinal,
     _infer_image_submodel_ordinal,
     _infer_text_submodel_ordinal,
 )
-from kneevision.fusion.dataset import MultimodalDataset
 
 
 class DummyBackbone(nn.Module):

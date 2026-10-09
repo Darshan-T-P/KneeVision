@@ -82,8 +82,9 @@ def predict_xray_explain(file: UploadFile = File(...), method: str = Form("gradc
     elif method == "scorecam":
         pred, conf, overlay = scorecam_explain(model, image, val_transform, device)
     elif method == "lime":
-        from kneevision.xai.base import overlay_heatmap
         import numpy as np
+
+        from kneevision.xai.base import overlay_heatmap
         pred, conf, importance, _segments = lime_explain(model, image, val_transform, device)
         img_np = np.array(image.resize((224, 224))) / 255.0
         overlay = overlay_heatmap(importance, img_np)

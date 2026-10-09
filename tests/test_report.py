@@ -1,8 +1,8 @@
 import numpy as np
 
 from kneevision.evaluation.report import (
-    compute_metrics,
     classification_report_text,
+    compute_metrics,
     confusion_matrix_plot,
     html_report,
     write_artifacts,

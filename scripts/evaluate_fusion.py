@@ -13,37 +13,38 @@ Usage:
 import argparse
 import csv
 import json
-from pathlib import Path
 import sys
 import time
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import numpy as np
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from kneevision.clinical.model import load_trained_clinical_model
 from kneevision.config.settings import (
-    RAW_DATA_DIR,
     BATCH_SIZE,
     MLFLOW_ENABLED,
     OAI_DATA_DIR,
+    RAW_DATA_DIR,
 )
-from kneevision.fusion import load_trained_fusion_model, MultimodalDataset
-from kneevision.models.image_model import load_trained_model as load_image_model
-from kneevision.clinical.model import load_trained_clinical_model
 from kneevision.data.prepare import prepare_from_folders
 from kneevision.data.transforms import val_transform
 from kneevision.evaluation.report import (
-    compute_metrics,
     classification_report_text,
+    compute_metrics,
     confusion_matrix_plot,
     html_report,
 )
+from kneevision.fusion import MultimodalDataset, load_trained_fusion_model
+from kneevision.models.image_model import load_trained_model as load_image_model
 from kneevision.training.losses import ordinal_to_probs
 from kneevision.utils.helpers import get_device
 from kneevision.utils.logging import setup_logger
@@ -204,7 +205,7 @@ def main():
             img_metrics = compute_metrics(all_labels, np.array(img_preds), np.array(img_probs))
             comparison[f"Image ({img_model_path.stem})"] = img_metrics
             logger.info(f"Image Baseline Kappa: {img_metrics['kappa']:.4f} | Acc: {img_metrics['accuracy']:.4f}")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError) as e:
             logger.warning(f"Could not evaluate image baseline: {e}")
 
     # 4. Evaluate Clinical Text Baseline
@@ -231,7 +232,7 @@ def main():
             txt_metrics = compute_metrics(all_labels, np.array(txt_preds), np.array(txt_probs))
             comparison["Clinical Text (BioClinicalBERT)"] = txt_metrics
             logger.info(f"Text Baseline Kappa: {txt_metrics['kappa']:.4f} | Acc: {txt_metrics['accuracy']:.4f}")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError) as e:
             logger.warning(f"Could not evaluate text baseline: {e}")
 
     # 5. Generate Artifacts & Reports
@@ -272,7 +273,7 @@ def main():
             tracker.log_artifact(str(out_dir / "report.html"))
             tracker.end_run()
             logger.info("Logged evaluation metrics and artifacts to MLflow.")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, KeyError) as e:
             logger.warning(f"MLflow logging skipped: {e}")
 
     print("\n" + "=" * 60)

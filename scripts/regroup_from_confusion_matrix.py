@@ -103,7 +103,7 @@ def main():
     assert len(cm5) == 5 and all(len(row) == 5 for row in cm5), "expected a frozen 5x5 confusion matrix"
 
     lines = []
-    lines.append(f"# Post-hoc clinical regrouping (derived, no new inference)\n")
+    lines.append("# Post-hoc clinical regrouping (derived, no new inference)\n")
     lines.append(f"**Source (frozen, untouched):** `{args.source}`")
     lines.append(f"**Source checkpoint SHA-256:** `{data.get('checkpoint_sha256', 'n/a')}`")
     lines.append(f"**Method:** pure arithmetic re-aggregation of the already-frozen {len(cm5)}x{len(cm5)} "

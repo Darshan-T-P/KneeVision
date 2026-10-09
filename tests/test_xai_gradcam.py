@@ -1,13 +1,13 @@
 """Tests for xai/base.py get_prediction, and xai/gradcam.py GradCAM class + explain."""
 import numpy as np
 import torch
-import torch.nn as nn
 from PIL import Image
+from torch import nn
 
-from kneevision.xai.base import get_prediction
-from kneevision.xai.gradcam import GradCAM, explain as gradcam_explain
 from kneevision.data.transforms import val_transform
-
+from kneevision.xai.base import get_prediction
+from kneevision.xai.gradcam import GradCAM
+from kneevision.xai.gradcam import explain as gradcam_explain
 
 # ── Minimal DenseNet-like model for hook registration ─────────────────────────
 
@@ -163,7 +163,7 @@ def test_gradcam_explain_returns_tuple():
 def test_gradcam_explain_overlay_shape():
     model = _FakeModel()
     img = _rand_pil()
-    pred, conf, overlay = gradcam_explain(model, img, val_transform, torch.device("cpu"))
+    _pred, _conf, overlay = gradcam_explain(model, img, val_transform, torch.device("cpu"))
     assert overlay.shape == (224, 224, 3)
     assert overlay.dtype == np.uint8
 

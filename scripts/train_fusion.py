@@ -1,21 +1,22 @@
 import argparse
 import csv
-import torch
-import torch.optim as optim
-from torch.utils.data import DataLoader
 from pathlib import Path
-from tqdm import tqdm
-from sklearn.metrics import accuracy_score, cohen_kappa_score, classification_report
 
-from kneevision.fusion.model import MultimodalFusionModel
-from kneevision.fusion.dataset import MultimodalDataset
-from kneevision.models.image_model import load_trained_model as load_image_model
+import torch
+from sklearn.metrics import accuracy_score, classification_report, cohen_kappa_score
+from torch import optim
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 from kneevision.clinical.model import load_trained_clinical_model
 from kneevision.data.prepare import prepare_from_folders
 from kneevision.data.transforms import build_train_transform, build_val_transform
+from kneevision.fusion.dataset import MultimodalDataset
+from kneevision.fusion.model import MultimodalFusionModel
+from kneevision.models.image_model import load_trained_model as load_image_model
 from kneevision.training.losses import OrdinalLoss, ordinal_to_class
+from kneevision.utils.helpers import get_device, set_seed
 from kneevision.utils.logging import setup_logger
-from kneevision.utils.helpers import set_seed, get_device
 
 logger = setup_logger("train_fusion")
 

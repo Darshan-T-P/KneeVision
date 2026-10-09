@@ -4,6 +4,7 @@ Run after `uv sync` upgrades MLflow:
     uv run python scripts/fix_mlflow_py314.py
 """
 from pathlib import Path
+
 import mlflow.assistant.skill_installer as _
 
 installer_path = Path(_.__file__)

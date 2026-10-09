@@ -2,8 +2,8 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from torch.utils.data import Dataset
 from PIL import Image
+from torch.utils.data import Dataset
 
 from kneevision.clinical.prepare import RADIOGRAPHIC_FIELDS
 

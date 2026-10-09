@@ -1,9 +1,8 @@
 """Tests for utils/tracking.py — MLflowTracker lifecycle and helpers."""
-import pytest
 import mlflow
+import pytest
 
 from kneevision.utils.tracking import MLflowTracker
-
 
 # ── fixtures ───────────────────────────────────────────────────────────────────
 

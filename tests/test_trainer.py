@@ -5,10 +5,14 @@ checkpoint, resume continuity (epoch / best val QWK / history / RNG state), and
 the guarantee that model selection happens only on the patient-disjoint val
 split — never on test.
 """
-import torch
-import pytest
-import torch.nn as nn
+from typing import ClassVar
 
+import pytest
+import torch
+from torch import nn
+
+from kneevision.config.settings import RAW_DATA_DIR
+from kneevision.training.losses import OrdinalLoss
 from kneevision.training.trainer import (
     EMA,
     EarlyStopping,
@@ -16,8 +20,6 @@ from kneevision.training.trainer import (
     save_checkpoint,
     validate,
 )
-from kneevision.training.losses import OrdinalLoss
-from kneevision.config.settings import RAW_DATA_DIR
 
 
 def _make_trainer_components():
@@ -75,7 +77,7 @@ class TestCheckpointRoundTrip:
 # ── checkpoint metadata (requirement 5) ──────────────────────────────────────
 
 class TestCheckpointMetadata:
-    FULL_META = {
+    FULL_META: ClassVar[dict[str, object]] = {
         "experiment": "densenet121_ordinal",
         "model_name": "densenet121",
         "ordinal": True,
@@ -131,7 +133,7 @@ class TestValidateOrdinalMetrics:
         # deterministic "dataset": 6 samples, KL labels 0..2
         x = torch.randn(6, 4)
         labels = torch.tensor([0, 0, 1, 1, 2, 2])
-        from torch.utils.data import TensorDataset, DataLoader
+        from torch.utils.data import DataLoader, TensorDataset
 
         ds = TensorDataset(x, labels)
         loader = DataLoader(ds, batch_size=6, shuffle=False)
@@ -148,12 +150,12 @@ class TestValidateOrdinalMetrics:
 
     def test_validate_non_ordinal_uses_max_logit(self):
         model = nn.Sequential(nn.Linear(4, 3))
-        from torch.utils.data import TensorDataset, DataLoader
+        from torch.utils.data import DataLoader, TensorDataset
         x = torch.randn(6, 4)
         labels = torch.tensor([0, 0, 1, 1, 2, 2])
         loader = DataLoader(TensorDataset(x, labels), batch_size=6)
         dev = torch.device("cpu")
-        loss, score, metrics = validate(
+        _loss, score, metrics = validate(
             model, loader, nn.CrossEntropyLoss(), dev,
             use_kappa=True, return_metrics=True, num_classes=5)
         assert "qwk" in metrics

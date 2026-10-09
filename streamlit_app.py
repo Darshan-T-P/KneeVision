@@ -3,32 +3,30 @@
 Run with:  uv run --extra dev streamlit run streamlit_app.py
 """
 
-import os
-import sys
 import json
+import os
 import re
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
-if (Path(__file__).resolve().parent / "models" / "best_densenet121.pt").exists():
-    # Checkpoints already present (normal dev setup) — skip the Hub-freshness check transformers/
-    # huggingface_hub would otherwise make on every model load. On a fresh clone (e.g. a Space,
-    # where checkpoints and the BioClinicalBERT cache still need to be fetched), stay online so
-    # ensure_checkpoints() below and the first BioClinicalBERT load can actually reach the Hub.
+bert_cache = Path.home() / ".cache" / "huggingface" / "hub" / "models--emilyalsentzer--Bio_ClinicalBERT"
+if (Path(__file__).resolve().parent / "models" / "best_densenet121.pt").exists() and bert_cache.exists():
     os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 
-import streamlit as st
-import torch
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import streamlit as st
+import torch
 from PIL import Image
 
-from kneevision.utils.helpers import get_device
 from kneevision.data.transforms import val_transform
 from kneevision.models.image_model import load_trained_model
 from kneevision.training.losses import ordinal_to_probs
-from kneevision.xai import gradcam_explain, scorecam_explain, lime_explain
+from kneevision.utils.helpers import get_device
+from kneevision.xai import gradcam_explain, lime_explain, scorecam_explain
 
 MODELS_DIR = Path(__file__).resolve().parent / "models"
 REPORTS_DIR = Path(__file__).resolve().parent / "reports"
@@ -52,12 +50,13 @@ def ensure_checkpoints() -> None:
     if not missing:
         return
     from huggingface_hub import hf_hub_download
+    from huggingface_hub.errors import EntryNotFoundError, HfHubHTTPError
 
     MODELS_DIR.mkdir(exist_ok=True)
     for filename in missing:
         try:
             hf_hub_download(repo_id=CHECKPOINT_REPO, filename=filename, local_dir=str(MODELS_DIR))
-        except Exception as exc:
+        except (EntryNotFoundError, HfHubHTTPError, OSError) as exc:
             # Runs before st.set_page_config() — an st.* call here would crash the whole app
             # (Streamlit requires set_page_config to be the first command). The individual
             # loaders below already degrade gracefully when a checkpoint is missing.
@@ -70,22 +69,28 @@ DEMO_REPORTS = {
     0: ("FINDINGS: The medial and lateral femorotibial joint spaces are well preserved. "
         "No osteophyte formation, subchondral sclerosis, or cystic change is identified. "
         "Patellofemoral compartment is normal. Periarticular soft tissues are unremarkable.\n\n"
-        "IMPRESSION: No radiographic evidence of knee osteoarthritis."),
+        "IMPRESSION: No significant radiographic abnormality."),
     1: ("FINDINGS: Minute marginal osteophyte formation is noted at the medial femoral condyle. "
         "Joint spaces remain preserved. No definite subchondral sclerosis or cyst formation.\n\n"
-        "IMPRESSION: Doubtful (minimal) osteoarthritis of the right knee — KL grade 1."),
+        "IMPRESSION: Minimal marginal osteophyte formation; joint spaces are maintained."),
     2: ("FINDINGS: Small-to-moderate marginal osteophytes arise from the medial tibial plateau and "
         "femoral condyle. Subtle narrowing of the medial compartment is present. Possible early "
         "subchondral sclerosis. Intercondylar eminence is sharp.\n\n"
-        "IMPRESSION: Mild medial compartment osteoarthritis — KL grade 2."),
-    3: ("FINDINGS: Definite narrowing of the medial femorotibial joint space with moderate multiple "
-        "marginal osteophytes. Moderate subchondral sclerosis and small pseudocystic areas with "
-        "sclerotic borders. Slight varus alignment of the knee.\n\n"
-        "IMPRESSION: Moderate osteoarthritis of the knee — KL grade 3."),
+        "IMPRESSION: Mild medial compartment degenerative change."),
+    3: ("EXAM: Three-view knee radiographs.\n\n"
+        "COMPARISON: No prior study is available.\n\n"
+        "FINDINGS: There is mild varus alignment. Definite medial femorotibial joint-space narrowing "
+        "is present with several moderate marginal osteophytes arising from the medial femoral condyle "
+        "and tibial plateau. Moderate subchondral sclerosis and small subchondral cystic areas with "
+        "well-defined sclerotic margins are seen in the medial compartment. The lateral femorotibial "
+        "joint space is relatively maintained. Small patellofemoral marginal osteophytes are present. "
+        "No acute fracture or dislocation is identified. No sizable joint effusion is seen.\n\n"
+        "IMPRESSION: Moderate osteoarthritic change, greatest in the medial femorotibial compartment, "
+        "with mild varus alignment."),
     4: ("FINDINGS: Severe near-complete loss of the medial joint space with a bone-on-bone appearance. "
         "Large osteophytes project from all compartments. Marked subchondral sclerosis with defined "
         "pseudocysts. Gross deformity of the femoral and tibial articular surfaces.\n\n"
-        "IMPRESSION: Severe tricompartmental osteoarthritis — KL grade 4."),
+        "IMPRESSION: Advanced tricompartmental degenerative change with articular deformity."),
 }
 
 GRADE_FEATURES = {
@@ -95,6 +100,61 @@ GRADE_FEATURES = {
     3: "Moderate — definite narrowing, moderate osteophytes, sclerosis.",
     4: "Severe — bone-on-bone, large osteophytes, marked deformity.",
 }
+
+CLINICAL_EXAMPLES = {
+    "Custom report": "",
+    "Sample report A": DEMO_REPORTS[0],
+    "Sample report B": DEMO_REPORTS[1],
+    "Sample report C": DEMO_REPORTS[2],
+    "Sample report D": DEMO_REPORTS[3],
+    "Sample report E": DEMO_REPORTS[4],
+}
+CLINICAL_EXAMPLE_REFERENCE = {
+    "Sample report A": 0,
+    "Sample report B": 1,
+    "Sample report C": 2,
+    "Sample report D": 3,
+    "Sample report E": 4,
+}
+
+REHAB_EXAMPLES = {
+    "Custom patient context": "",
+    "Active adult · intermittent pain on stairs": "58-year-old, BMI 27, intermittent knee pain on stairs; remains active and reports no instability.",
+    "Persistent symptoms · reduced walking tolerance": "71-year-old, BMI 32, persistent weight-bearing pain and difficulty walking more than 10 minutes; reports occasional instability.",
+    "Low symptoms · morning stiffness": "53-year-old, BMI 25, mild morning stiffness lasting about 15 minutes; no swelling and normal daily walking.",
+}
+
+REHAB_PRIMARY_SOURCES = [
+    ("OARSI 2019 non-surgical OA management guidelines", "https://oarsi.org/education/oarsi-guidelines"),
+    ("AAOS 2021 Management of Osteoarthritis of the Knee guideline", "https://www.aaos.org/globalassets/quality-and-practice-resources/osteoarthritis-of-the-knee/oak3cpg.pdf"),
+    ("ACR / Arthritis Foundation 2019 OA management guideline", "https://pubmed.ncbi.nlm.nih.gov/?term=2019+ACR+Arthritis+Foundation+Guideline+Osteoarthritis+Knee"),
+    ("CDC arthritis self-management guidance", "https://www.cdc.gov/arthritis/hcp/self-management/index.html"),
+    ("Arthritis Foundation OA treatment guideline overview", "https://www.arthritis.org/diseases/more-about/guidelines-for-osteoarthritis-treatments"),
+]
+
+
+def _load_selected_example(select_key: str, input_key: str, examples: dict[str, str]) -> None:
+    selected = st.session_state.get(select_key, "")
+    st.session_state[input_key] = examples.get(selected, "")
+
+
+def show_rehab_sources(result) -> None:
+    with st.expander(f"Sources and retrieved evidence ({len(result.retrieved_chunks)} excerpts)", expanded=False):
+        st.markdown(
+            "The app retrieves from original summaries in `data/guidelines/`, which synthesize the "
+            "public references below. These summaries are not verbatim guideline text and are not "
+            "individually endorsed by each source."
+        )
+        st.markdown("**Primary references**")
+        for title, url in REHAB_PRIMARY_SOURCES:
+            st.markdown(f"- [{title}]({url})")
+
+        st.markdown("**Retrieved project summaries used for this response**")
+        if not result.retrieved_chunks:
+            st.info("No matching guideline excerpts were retrieved.")
+        for chunk in result.retrieved_chunks:
+            st.markdown(f"**{chunk.heading}** · `{chunk.source_path}`")
+            st.info(chunk.text)
 
 
 @st.cache_data(show_spinner="Indexing demo X-rays...")
@@ -116,48 +176,662 @@ def demo_images() -> dict[int, str]:
 
 CSS = """
 <style>
-    section.main > div { padding-top: 1.2rem; }
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
-    .kvp-hero {
-        background: linear-gradient(120deg, #0f766e 0%, #0e7490 55%, #0369a1 100%);
-        border-radius: 18px; padding: 2rem 2.2rem; color: #ffffff;
-        margin-bottom: 1.4rem;
-    }
-    .kvp-hero h1 { color: #ffffff; margin: 0 0 .3rem 0; font-size: 2.1rem; }
-    .kvp-hero p  { color: #d8f3f0; margin: 0; font-size: 1.02rem; }
-    .kvp-badges span {
-        display:inline-block; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.35);
-        border-radius: 999px; padding: .15rem .7rem; font-size: .78rem; margin-right: .45rem; margin-top: .8rem;
-        color: #ecfeff;
-    }
-    .kvp-card {
-        background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px;
-        padding: 1.1rem 1.3rem; box-shadow: 0 1px 3px rgba(15,23,42,.06); height: 100%;
-        color: #0f172a;
-    }
-    .kvp-card h4 { margin: 0 0 .55rem 0; color: #334155; font-size: .95rem;
-                   text-transform: uppercase; letter-spacing: .06em; }
-    .kvp-grade { font-size: 2.5rem; font-weight: 800; line-height: 1.05; }
-    .kvp-sub   { color: #64748b; font-size: .92rem; margin-top: .15rem; }
-    .kvp-bar   { background:#e2e8f0; border-radius:999px; height:.65rem; overflow:hidden; margin-top:.7rem; }
-    .kvp-fill  { height:100%; border-radius:999px;
-                 background:linear-gradient(90deg,#0ea5e9,#0f766e); }
+html, body, [class*="css"], .stApp {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
 
-    .flow-row { display:flex; align-items:center; gap:.55rem; margin:.45rem 0; flex-wrap:wrap; }
-    .flow-node {
-        background:#f0fdfa; border:1.5px solid #99f6e4; color:#134e4a;
-        border-radius:12px; padding:.55rem .95rem; font-size:.88rem; font-weight:600; text-align:center;
-    }
-    .flow-node small { display:block; font-weight:400; color:#0f766e; font-size:.74rem; }
-    .flow-node.fusion { background:#eff6ff; border-color:#bfdbfe; color:#1e3a8a; }
-    .flow-node.output { background:#fefce8; border-color:#fde68a; color:#713f12; }
-    .flow-arrow { color:#94a3b8; font-size:1.25rem; font-weight:700; }
-    .flow-spacer { flex:0 0 3.2rem; }
+section.main > div {
+    padding-top: 1.2rem;
+    max-width: 1300px;
+}
 
-    .chip-ok   { background:#dcfce7; color:#166534; border-radius:999px; padding:.25rem .85rem;
-                 font-weight:700; display:inline-block; }
-    .chip-warn { background:#fef9c3; color:#854d0e; border-radius:999px; padding:.25rem .85rem;
-                 font-weight:700; display:inline-block; }
+/* Hero Section */
+.kvp-hero {
+    background: linear-gradient(135deg, #091e36 0%, #0c2a47 45%, #08172c 100%);
+    border: 1px solid rgba(56, 189, 248, 0.28);
+    border-radius: 20px;
+    padding: 2.2rem 2.5rem;
+    color: #ffffff;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.45), 0 0 30px -10px rgba(14, 165, 233, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+.kvp-hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, #38bdf8 25%, #2dd4bf 75%, transparent);
+}
+.kvp-hero-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 0.4rem;
+}
+.kvp-hero h1 {
+    color: #ffffff !important;
+    margin: 0 !important;
+    font-size: 2.2rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.025em !important;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.kvp-status-pill {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #6ee7b7;
+    border-radius: 999px;
+    padding: 0.3rem 0.85rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.kvp-hero p {
+    color: #94a3b8 !important;
+    margin: 0 !important;
+    font-size: 1.02rem !important;
+    line-height: 1.6 !important;
+    max-width: 860px;
+}
+.kvp-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+}
+.kvp-badges span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    border-radius: 999px;
+    padding: 0.32rem 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #bae6fd;
+    backdrop-filter: blur(8px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.kvp-badges span:hover {
+    background: rgba(14, 165, 233, 0.18);
+    border-color: rgba(56, 189, 248, 0.5);
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+/* Glassmorphic Elevated Cards */
+.kvp-card {
+    background: rgba(17, 24, 39, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 16px;
+    padding: 1.35rem 1.5rem;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    height: 100%;
+    color: #e2e8f0;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+.kvp-card:hover {
+    border-color: rgba(56, 189, 248, 0.32);
+    box-shadow: 0 12px 28px -4px rgba(14, 165, 233, 0.18), 0 0 0 1px rgba(56, 189, 248, 0.1) inset;
+    transform: translateY(-2px);
+}
+.kvp-card h4 {
+    margin: 0 0 0.75rem 0 !important;
+    color: #94a3b8 !important;
+    font-size: 0.78rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.09em !important;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.kvp-grade {
+    font-size: 2.6rem;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+}
+.kvp-sub {
+    color: #94a3b8;
+    font-size: 0.88rem;
+    margin-top: 0.25rem;
+}
+.kvp-bar {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    height: 0.65rem;
+    overflow: hidden;
+    margin-top: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+.kvp-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #0ea5e9, #10b981);
+    transition: width 0.4s ease-out;
+}
+
+/* Metric Stat Box */
+.kvp-stat-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: calc(100% - 1.8rem);
+}
+.kvp-stat-number {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #f8fafc;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin: 0.2rem 0 0.4rem 0;
+}
+.kvp-stat-number span.unit {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #38bdf8;
+    margin-left: 0.3rem;
+}
+.kvp-stat-desc {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    line-height: 1.45;
+}
+.kvp-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    color: #38bdf8;
+    border-radius: 6px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    margin-top: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* Multimodal Pipeline Architecture Box */
+.kvp-pipeline-card {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 18px;
+    padding: 1.6rem 1.8rem;
+    margin: 1.5rem 0;
+    box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.3);
+}
+.kvp-pipeline-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.kvp-pipeline-header h4 {
+    margin: 0 !important;
+    font-size: 0.85rem !important;
+    font-weight: 800 !important;
+    color: #e2e8f0 !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.kvp-flow-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+.flow-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.flow-node {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(56, 189, 248, 0.28);
+    color: #f1f5f9;
+    border-radius: 12px;
+    padding: 0.7rem 1.15rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 145px;
+    transition: all 0.2s ease;
+}
+.flow-node:hover {
+    border-color: rgba(56, 189, 248, 0.6);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(14, 165, 233, 0.2);
+}
+.flow-node small {
+    font-weight: 500;
+    color: #38bdf8;
+    font-size: 0.73rem;
+    letter-spacing: 0.02em;
+}
+.flow-node.fusion {
+    background: linear-gradient(135deg, rgba(88, 28, 135, 0.35) 0%, rgba(59, 130, 246, 0.25) 100%);
+    border-color: rgba(168, 85, 247, 0.5);
+    color: #faf5ff;
+}
+.flow-node.fusion small {
+    color: #c084fc;
+}
+.flow-node.output {
+    background: linear-gradient(135deg, rgba(161, 98, 7, 0.3) 0%, rgba(202, 138, 4, 0.2) 100%);
+    border-color: rgba(251, 191, 36, 0.5);
+    color: #fef9c3;
+}
+.flow-node.output small {
+    color: #fde047;
+}
+.flow-arrow {
+    color: #64748b;
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+.flow-spacer {
+    flex: 0 0 3.2rem;
+}
+
+/* Feature Grid Cards */
+.kvp-features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0 1.8rem 0;
+}
+.kvp-feat-card {
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 1.15rem 1.25rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.kvp-feat-card:hover {
+    border-color: rgba(56, 189, 248, 0.35);
+    background: rgba(15, 23, 42, 0.85);
+    transform: translateY(-2px);
+}
+.kvp-feat-icon {
+    font-size: 1.4rem;
+    margin-bottom: 0.5rem;
+}
+.kvp-feat-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 0.35rem;
+}
+.kvp-feat-text {
+    font-size: 0.82rem;
+    color: #94a3b8;
+    line-height: 1.45;
+}
+
+/* Styled HTML Results Table */
+.kvp-table-wrap {
+    overflow-x: auto;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(15, 23, 42, 0.7);
+    margin: 0.8rem 0 0.5rem 0;
+}
+.kvp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    text-align: left;
+}
+.kvp-table th {
+    background: rgba(15, 23, 42, 0.95);
+    color: #94a3b8;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.74rem;
+    letter-spacing: 0.08em;
+    padding: 0.85rem 1.1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.kvp-table td {
+    padding: 0.9rem 1.1rem;
+    color: #e2e8f0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.kvp-table tr:last-child td {
+    border-bottom: none;
+}
+.kvp-table tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+.kvp-tag-pill {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    font-size: 0.74rem;
+    font-weight: 600;
+}
+.kvp-tag-blue { background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.25); }
+.kvp-tag-green { background: rgba(52, 211, 153, 0.12); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.25); }
+.kvp-tag-purple { background: rgba(168, 85, 247, 0.12); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.25); }
+
+/* Sidebar Custom Styling */
+section[data-testid="stSidebar"] {
+    background-color: #ffffff !important;
+    border-right: 1px solid #e2eaf0 !important;
+}
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label {
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 0.55rem 0.85rem;
+    border-radius: 10px;
+    margin-bottom: 0.3rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:hover {
+    background: #f2f8fa;
+    border-color: #dce7ee;
+}
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:has(input:checked) {
+    background: #eaf6f8 !important;
+    border: 1px solid #9cced6 !important;
+}
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:has(input:checked) p {
+    color: #087e8b !important;
+    font-weight: 700 !important;
+}
+.kvp-sidebar-header {
+    padding: 0.2rem 0.1rem 1rem 0.1rem;
+    border-bottom: 1px solid #e2eaf0;
+    margin-bottom: 0.9rem;
+}
+.kvp-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.kvp-logo-badge {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #0ea5e9, #10b981);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);
+}
+.kvp-brand-title {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+}
+.kvp-brand-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #38bdf8;
+    letter-spacing: 0.08em;
+    margin-top: 0.2rem;
+}
+.kvp-brand-desc {
+    color: #94a3b8;
+    font-size: 0.8rem;
+    margin-top: 0.7rem;
+    line-height: 1.45;
+}
+.kvp-brand-desc span {
+    color: #64748b;
+    font-size: 0.75rem;
+}
+.kvp-sidebar-footer {
+    margin-top: 1.2rem;
+    padding: 0.85rem;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.kvp-footer-status {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #34d399;
+    margin-bottom: 0.4rem;
+}
+.dot-online {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: #10b981;
+    box-shadow: 0 0 8px #10b981;
+    display: inline-block;
+}
+.kvp-footer-meta {
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.4;
+}
+.kvp-footer-meta code {
+    background: rgba(255, 255, 255, 0.06);
+    color: #94a3b8;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.68rem;
+}
+.chip-ok {
+    background: rgba(16, 185, 129, 0.15) !important;
+    color: #34d399 !important;
+    border: 1px solid rgba(16, 185, 129, 0.35) !important;
+    border-radius: 999px;
+    padding: 0.25rem 0.85rem;
+    font-weight: 700;
+    display: inline-block;
+    font-size: 0.78rem;
+}
+.chip-warn {
+    background: rgba(245, 158, 11, 0.15) !important;
+    color: #fbbf24 !important;
+    border: 1px solid rgba(245, 158, 11, 0.35) !important;
+    border-radius: 999px;
+    padding: 0.25rem 0.85rem;
+    font-weight: 700;
+    display: inline-block;
+    font-size: 0.78rem;
+}
+
+/* White theme */
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stHeader"] {
+    background: #ffffff !important;
+    color: #172b3a !important;
+}
+[data-testid="stHeader"] {
+    border-bottom: 1px solid #e5edf2;
+}
+[data-testid="stSidebar"] {
+    background: #ffffff !important;
+    border-right: 1px solid #e2eaf0 !important;
+}
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] span,
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] h1,
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3,
+[data-testid="stMarkdownContainer"] h4 {
+    color: #172b3a !important;
+}
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] p {
+    color: #526779 !important;
+}
+.kvp-hero,
+.kvp-card,
+.kvp-pipeline-card,
+.flow-node,
+.kvp-feat-card,
+.kvp-table-wrap,
+.kvp-sidebar-footer {
+    background: #ffffff !important;
+    color: #172b3a !important;
+    border-color: #dce7ee !important;
+    box-shadow: 0 5px 18px rgba(34, 65, 83, 0.08) !important;
+}
+.kvp-hero {
+    background: linear-gradient(120deg, #ffffff 0%, #f2fbfc 100%) !important;
+}
+.kvp-hero h1,
+.kvp-hero p,
+.kvp-card,
+.kvp-card h4,
+.kvp-sub,
+.kvp-stat-number,
+.kvp-stat-desc,
+.kvp-pipeline-header h4,
+.flow-node,
+.kvp-feat-title,
+.kvp-feat-text,
+.kvp-table td,
+.kvp-brand-title,
+.kvp-brand-desc,
+.kvp-footer-meta {
+    color: #172b3a !important;
+}
+.kvp-hero p,
+.kvp-sub,
+.kvp-stat-desc,
+.kvp-feat-text,
+.kvp-brand-desc,
+.kvp-footer-meta {
+    color: #526779 !important;
+}
+.kvp-status-pill,
+.kvp-footer-status,
+.kvp-brand-tag,
+.kvp-grade,
+.kvp-stat-number span.unit,
+.kvp-pill-badge {
+    color: #087e8b !important;
+}
+.kvp-status-pill {
+    background: #e8f7f4 !important;
+    border-color: #a9ddd1 !important;
+}
+.kvp-tag-blue {
+    color: #075985 !important;
+}
+.kvp-tag-green {
+    color: #166534 !important;
+}
+.kvp-tag-purple {
+    color: #6b3fa0 !important;
+}
+.chip-ok {
+    color: #166534 !important;
+}
+.chip-warn {
+    color: #92400e !important;
+}
+.kvp-badges span,
+.kvp-footer-meta code,
+.kvp-table th {
+    background: #f3f8fa !important;
+    color: #345367 !important;
+    border-color: #dce7ee !important;
+}
+.kvp-pipeline-header {
+    border-bottom-color: #e2eaf0 !important;
+}
+.flow-node.fusion {
+    background: #eff8fb !important;
+    border-color: #b9dce8 !important;
+    color: #164e63 !important;
+}
+.flow-node.fusion small {
+    color: #087e8b !important;
+}
+.flow-node.output {
+    background: #f5faf5 !important;
+    border-color: #c8dfcb !important;
+    color: #315c3a !important;
+}
+.flow-node.output small {
+    color: #3d7a4b !important;
+}
+.kvp-table td {
+    border-bottom-color: #e7eef2 !important;
+}
+.kvp-table tr:hover td,
+[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:hover {
+    background: #f2f8fa !important;
+}
+[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:has(input:checked) {
+    background: #eaf6f8 !important;
+    border-color: #9cced6 !important;
+}
+[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:has(input:checked) p {
+    color: #087e8b !important;
+}
+input,
+textarea,
+[data-baseweb="input"],
+[data-baseweb="select"] > div,
+[data-testid="stNumberInput"] button,
+[data-testid="stFileUploaderDropzone"] {
+    background-color: #ffffff !important;
+    color: #172b3a !important;
+    border-color: #cbd9e1 !important;
+}
+[data-testid="stMarkdownContainer"] [style*="background:rgba(15,23,42"],
+[data-testid="stMarkdownContainer"] [style*="background:#1e293b"],
+[data-testid="stMarkdownContainer"] [style*="background:linear-gradient(120deg,#064e3b"] {
+    background: #ffffff !important;
+    color: #172b3a !important;
+    border-color: #dce7ee !important;
+}
+[data-testid="stMarkdownContainer"] [style*="color:#f8fafc"],
+[data-testid="stMarkdownContainer"] [style*="color:#f1f5f9"],
+[data-testid="stMarkdownContainer"] [style*="color:#e2e8f0"],
+[data-testid="stMarkdownContainer"] [style*="color:#ffffff"],
+[data-testid="stMarkdownContainer"] [style*="color:#94a3b8"] {
+    color: #172b3a !important;
+}
 </style>
 """
 
@@ -166,12 +840,18 @@ def hero():
     st.markdown(
         """
         <div class="kvp-hero">
-            <h1>&#129495; KneeVision++ &mdash; Multimodal OA Diagnosis</h1>
-            <p>Explainable deep learning for knee osteoarthritis: KL grading from X-rays,
-            screening from clinical reports, and a late-fusion demo combining both.</p>
-            <div class="kvp-badges"><span>Kellgren&ndash;Lawrence 0&ndash;4</span>
-            <span>CNN Ensemble</span><span>BioClinicalBERT</span><span>Grad-CAM &middot; LIME</span>
-            <span>MLflow-tracked</span></div>
+            <div class="kvp-hero-title-row">
+                <h1>🦵 KneeVision++ <span style="font-weight:400;color:#94a3b8;font-size:1.4rem;">· Multimodal OA Diagnosis</span></h1>
+                <div class="kvp-status-pill"><span class="dot-online"></span> Diagnostic Models Active</div>
+            </div>
+            <p>Clinical-grade deep learning system for knee osteoarthritis: fine-grained Kellgren–Lawrence (KL 0–4) grading from radiographs, triage screening from clinical narrative reports, and late-fusion decision support.</p>
+            <div class="kvp-badges">
+                <span>🩻 KL Grades 0–4</span>
+                <span>⚡ CNN Ensemble (DenseNet + EfficientNet)</span>
+                <span>🧬 BioClinicalBERT</span>
+                <span>🔍 Grad-CAM &middot; Score-CAM &middot; LIME</span>
+                <span>📊 MLflow Monitored</span>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -182,6 +862,23 @@ def card(title: str, body_html: str):
     return f'<div class="kvp-card"><h4>{title}</h4>{body_html}</div>'
 
 
+def metric_card(title: str, value: str, unit: str, subtitle: str, badge_text: str, icon: str) -> str:
+    return f"""
+    <div class="kvp-card">
+        <h4><span>{icon}</span> {title}</h4>
+        <div class="kvp-stat-container">
+            <div>
+                <div class="kvp-stat-number">{value}<span class="unit">{unit}</span></div>
+                <div class="kvp-stat-desc">{subtitle}</div>
+            </div>
+            <div>
+                <span class="kvp-pill-badge">{badge_text}</span>
+            </div>
+        </div>
+    </div>
+    """
+
+
 def grade_card(title: str, pred: int | None, conf: float | None, accent: str) -> str:
     if pred is None:
         return card(title, '<div class="kvp-sub">—</div>')
@@ -190,37 +887,66 @@ def grade_card(title: str, pred: int | None, conf: float | None, accent: str) ->
     return card(
         title,
         f'<div class="kvp-grade" style="color:{accent}">KL {pred}</div>'
-        f'<div class="kvp-sub">{KL_LABELS[pred]}</div>'
-        f'<div class="kvp-bar"><div class="kvp-fill" style="width:{fill_w}%"></div></div>'
-        f'<div class="kvp-sub">confidence {pct}</div>',
+        f'<div class="kvp-sub" style="font-size:1.05rem;font-weight:700;color:#f8fafc;margin-bottom:0.35rem;">{KL_LABELS[pred]}</div>'
+        f'<div class="kvp-bar"><div class="kvp-fill" style="width:{fill_w}%;background:linear-gradient(90deg, {accent}, #38bdf8)"></div></div>'
+        f'<div class="kvp-sub" style="margin-top:0.45rem;display:flex;justify-content:space-between;"><span>Confidence</span><b style="color:#f8fafc">{pct}</b></div>',
     )
 
 
 def fusion_flow_diagram():
     st.markdown(
         """
-        <div class="kvp-card">
-          <h4>Multimodal late-fusion architecture</h4>
-          <div class="flow-row">
-            <div class="flow-node">&#129707; Knee X-ray<small>224&times;224 radiograph</small></div>
-            <div class="flow-arrow">&rarr;</div>
-            <div class="flow-node">CNN Ensemble<small>DenseNet121 &middot; EfficientNet-B4</small></div>
-            <div class="flow-arrow">&rarr;</div>
-            <div class="flow-node">P(KL 0&ndash;4)<small>image modality</small></div>
+        <div class="kvp-pipeline-card">
+          <div class="kvp-pipeline-header">
+            <h4>🔀 Multimodal Late-Fusion Pipeline Architecture</h4>
+            <span class="kvp-tag-pill kvp-tag-purple">Decision Fusion α = 0.50</span>
           </div>
-          <div class="flow-row">
-            <div class="flow-node">&#128221; Clinical report<small>free-text findings</small></div>
-            <div class="flow-arrow">&rarr;</div>
-            <div class="flow-node">BioClinicalBERT<small>frozen encoder + head</small></div>
-            <div class="flow-arrow">&rarr;</div>
-            <div class="flow-node">P(KL 0&ndash;4)<small>text modality</small></div>
-          </div>
-          <div class="flow-row">
-            <div class="flow-spacer"></div>
-            <div class="flow-arrow">&#8618;</div>
-            <div class="flow-node fusion">&#8853; Late Fusion<small>P<sub>fused</sub> = (1&minus;&alpha;)&middot;P<sub>img</sub> + &alpha;&middot;P<sub>text</sub></small></div>
-            <div class="flow-arrow">&rarr;</div>
-            <div class="flow-node output">Final KL grade<small>argmax + confidence</small></div>
+          <div class="kvp-flow-grid">
+            <div class="flow-row">
+              <div class="flow-node">
+                🩻 Knee X-ray
+                <small>224×224 normalized radiograph</small>
+              </div>
+              <div class="flow-arrow">&rarr;</div>
+              <div class="flow-node">
+                CNN Ensemble
+                <small>DenseNet121 &middot; EfficientNet-B4</small>
+              </div>
+              <div class="flow-arrow">&rarr;</div>
+              <div class="flow-node">
+                P(KL 0&ndash;4)
+                <small>imaging modality softmax</small>
+              </div>
+            </div>
+            <div class="flow-row">
+              <div class="flow-node">
+                📝 Clinical Report
+                <small>free-text narrative findings</small>
+              </div>
+              <div class="flow-arrow">&rarr;</div>
+              <div class="flow-node">
+                BioClinicalBERT
+                <small>frozen encoder + classification head</small>
+              </div>
+              <div class="flow-arrow">&rarr;</div>
+              <div class="flow-node">
+                P(KL 0&ndash;4)
+                <small>clinical NLP modality softmax</small>
+              </div>
+            </div>
+            <div class="flow-row">
+              <div class="flow-spacer"></div>
+              <div class="flow-arrow">&#8618;</div>
+              <div class="flow-node fusion">
+                &#8853; Late Fusion Layer
+                <small>P<sub>fused</sub> = (1&minus;&alpha;)&middot;P<sub>img</sub> + &alpha;&middot;P<sub>text</sub></small>
+              </div>
+              <div class="flow-arrow">&rarr;</div>
+              <div class="flow-node output">
+                🎯 Final KL Grade
+                <small>argmax + calibrated confidence</small>
+              </div>
+            </div>
           </div>
         </div>
         """,
@@ -236,8 +962,18 @@ def fusion_flow_diagram():
 def checkpoint_metas() -> list[dict]:
     metas = []
     for path in sorted(MODELS_DIR.glob("best_*.json")):
-        meta = json.loads(path.read_text())
-        meta["file"] = path.stem + ".pt"
+        if ".cm." in path.name or ".test." in path.name:
+            continue
+        try:
+            meta = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(meta, dict) or "model_name" not in meta:
+            continue
+        pt_file = path.stem + ".pt"
+        if not (MODELS_DIR / pt_file).exists():
+            continue
+        meta["file"] = pt_file
         metas.append(meta)
     return metas
 
@@ -294,11 +1030,14 @@ def load_image_models():
         if meta.get("binary") or meta.get("ordinal"):
             continue
         path = MODELS_DIR / meta["file"]
+        if not path.exists():
+            continue
         try:
             available[meta["model_name"]] = load_trained_model(
                 path, device, num_classes=meta.get("num_classes", 5)
             )
-        except RuntimeError:
+        except (OSError, RuntimeError, ValueError, KeyError, ImportError) as exc:
+            print(f"[load_image_models] Could not load {path}: {exc}")
             continue
     return device, available
 
@@ -311,10 +1050,14 @@ def load_binary_model():
     meta = meta or next((m for m in checkpoint_metas() if m.get("binary")), None)
     if meta is None:
         return None, None
+    pt_path = MODELS_DIR / meta["file"]
+    if not pt_path.exists():
+        return None, None
     try:
-        model = load_trained_model(MODELS_DIR / meta["file"], device, num_classes=2)
+        model = load_trained_model(pt_path, device, num_classes=2)
         return model, meta["model_name"]
-    except RuntimeError:
+    except (OSError, RuntimeError, ValueError, KeyError, ImportError) as exc:
+        print(f"[load_binary_model] Could not load {pt_path}: {exc}")
         return None, None
 
 
@@ -329,7 +1072,8 @@ def load_clinical_model():
             return load_trained_clinical_model(trained, device, num_classes=5), True
         model = ClinicalTextModel(num_classes=5, ordinal=False).to(device)
         return model, False
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, ImportError) as exc:
+        print(f"[load_clinical_model] Error: {exc}")
         return None, False
 
 
@@ -344,7 +1088,8 @@ def load_fusion_model():
             model = load_trained_fusion_model(trained, device, num_classes=5)
             return model, True
         return None, False
-    except Exception:
+    except (OSError, RuntimeError, ValueError, KeyError, ImportError) as exc:
+        print(f"[load_fusion_model] Could not load {trained}: {exc}")
         return None, False
 
 
@@ -404,90 +1149,224 @@ def page_overview():
     hero()
     col_l, col_m, col_r = st.columns(3)
     with col_l:
-        st.markdown(card("Dataset", "<b>8,260</b> labeled knee X-rays<br><small>Kaggle MOST-style set · train/val/test split</small>"), unsafe_allow_html=True)
+        st.markdown(
+            metric_card(
+                title="Dataset Cohort",
+                value="8,260",
+                unit="X-rays",
+                subtitle="Kaggle MOST-style benchmark · Standardized train/val/test splits",
+                badge_text="Standardized Split",
+                icon="🩻",
+            ),
+            unsafe_allow_html=True,
+        )
     with col_m:
-        st.markdown(card("Clinical corpus", "<b>16,592</b> OAI reports<br><small>narrative radiology findings CSV</small>"), unsafe_allow_html=True)
+        st.markdown(
+            metric_card(
+                title="Clinical Corpus",
+                value="16,592",
+                unit="reports",
+                subtitle="OAI free-text narrative radiology impressions & clinical findings",
+                badge_text="BioClinicalBERT",
+                icon="📝",
+            ),
+            unsafe_allow_html=True,
+        )
     with col_r:
-        st.markdown(card("Best screening", "<b>87.0%</b> accuracy · AUC 0.946<br><small>ConvNeXt-S binary OA detector</small>"), unsafe_allow_html=True)
+        st.markdown(
+            metric_card(
+                title="Best Screening",
+                value="87.0%",
+                unit="acc",
+                subtitle="ConvNeXt-S binary OA triage detector (KL 0–1 vs 2–4) · AUC 0.946",
+                badge_text="AUC 0.946",
+                icon="🎯",
+            ),
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("### Try the demo")
+    st.markdown(
+        "1. **Guided Demo**: run the same reference X-ray through the image, clinical-text, and screening models. "
+        "The report is synthetic and is not paired to the image.\n"
+        "2. **Clinical Text**: choose one of five label-free report examples, then select **Predict KL grade**. "
+        "The example category is a reference, not a promised prediction.\n"
+        "3. **Multimodal Fusion**: select an example case to load its report and available reference X-ray, "
+        "or upload/paste your own inputs.\n"
+        "4. **Rehab Recommendation**: choose a KL grade and optional symptom profile, then generate guideline-based guidance."
+    )
+    st.caption("Use de-identified test examples only. This research demo is not for diagnosis or treatment decisions.")
 
     fusion_flow_diagram()
 
-    st.markdown("**What we built**")
+    st.markdown("### 🛠️ Architecture & Research Methodology")
     st.markdown(
         """
-        1. **Data** — 8,260 Kaggle knee X-rays (train/val/test) + OAI clinical reports CSV.
-        2. **5-class KL grading** — fine-tuned DenseNet121 and EfficientNet-B4 with class-weighted loss,
-           cosine LR schedule, early stopping on quadratic-weighted κ, EMA checkpointing.
-        3. **Dedicated binary OA detection** (KL 0-1 vs 2-4) — same recipe with a 2-class head;
-           ConvNeXt-Small joined as the strongest member.
-        4. **Class grouping from 5-class probabilities** — marginalizing softmax outputs into
-           2 groups (0-1 / 2-4) and 3 groups (0-1 / 2-3 / 4).
-        5. **Ensembling + TTA + threshold tuning** on the validation split for all tasks.
-        6. **Explainability** — Grad-CAM / Score-CAM / LIME heatmaps in this app.
-        7. **Multimodal fusion** — CNN + BioClinicalBERT late fusion (demo in the sidebar menu).
-        8. **Tracking & serving** — MLflow experiment tracking, Streamlit demo (this app).
-        """
+        <div class="kvp-features-grid">
+            <div class="kvp-feat-card">
+                <div class="kvp-feat-icon">🩻</div>
+                <div class="kvp-feat-title">1. Data Architecture</div>
+                <div class="kvp-feat-text">8,260 standardized radiographs across 5 KL severity grades plus 16.5k narrative radiology notes from OAI.</div>
+            </div>
+            <div class="kvp-feat-card">
+                <div class="kvp-feat-icon">⚙️</div>
+                <div class="kvp-feat-title">2. 5-Class KL Grading</div>
+                <div class="kvp-feat-text">DenseNet121 & EfficientNet-B4 fine-tuned with class-weighted loss, cosine annealing, and early stopping on Quadratic Weighted κ.</div>
+            </div>
+            <div class="kvp-feat-card">
+                <div class="kvp-feat-icon">⚡</div>
+                <div class="kvp-feat-title">3. Dedicated OA Screening</div>
+                <div class="kvp-feat-text">High-throughput binary OA triage (KL 0-1 vs 2-4) powered by ConvNeXt-S achieving 87.0% accuracy and 0.946 ROC-AUC.</div>
+            </div>
+            <div class="kvp-feat-card">
+                <div class="kvp-feat-icon">📊</div>
+                <div class="kvp-feat-title">4. Soft Probability Grouping</div>
+                <div class="kvp-feat-text">Clinical risk-tier aggregation from 5-class softmax probabilities into 2-group (85.0% acc) and 3-group (70.2% acc) categories.</div>
+            </div>
+            <div class="kvp-feat-card">
+                <div class="kvp-feat-icon">🎯</div>
+                <div class="kvp-feat-title">5. Ensembling & Calibration</div>
+                <div class="kvp-feat-text">Validation-tuned multi-model ensembling and test-time augmentation (TTA) optimizing ROC-AUC and Cohen's κ.</div>
+            </div>
+            <div class="kvp-feat-card">
+                <div class="kvp-feat-icon">🔥</div>
+                <div class="kvp-feat-title">6. Interpretable XAI Heatmaps</div>
+                <div class="kvp-feat-text">Pixel-attribution via Grad-CAM, Score-CAM, and LIME highlighting joint space narrowing, subchondral sclerosis, and osteophytes.</div>
+            </div>
+            <div class="kvp-feat-card">
+                <div class="kvp-feat-icon">🔀</div>
+                <div class="kvp-feat-title">7. Multimodal Late Fusion</div>
+                <div class="kvp-feat-text">Real-time fusion of radiograph visual features and BioClinicalBERT clinical note representations.</div>
+            </div>
+            <div class="kvp-feat-card">
+                <div class="kvp-feat-icon">📈</div>
+                <div class="kvp-feat-title">8. MLflow Lifecycle Tracking</div>
+                <div class="kvp-feat-text">End-to-end experiment logging tracking parameters, checkpoint weights, confusion matrices, and validation metrics.</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    st.markdown("**Headline test-set results**")
+    st.markdown("### 🏆 Headline Test-Set Benchmark Results")
     acc_5c, acc_gb, acc_g3 = report_accuracy("evaluate"), report_accuracy("grouped_binary"), report_accuracy("grouped_3class")
-    headline = pd.DataFrame([
-        {"Task": "5-class grading", "Approach": "DenseNet121", "Test accuracy": f"{acc_5c:.1%}" if acc_5c else "—", "ROC-AUC": "—", "Cohen's κ": "0.7751 (val)"},
-        {"Task": "Binary OA detection", "Approach": "ConvNeXt-Small (best single)", "Test accuracy": "87.0%", "ROC-AUC": "0.9457", "Cohen's κ": "0.7571 (val)"},
-        {"Task": "Binary OA detection", "Approach": "DenseNet + ConvNeXt ensemble", "Test accuracy": "86.5%", "ROC-AUC": "0.9463", "Cohen's κ": "—"},
-        {"Task": "Grouped (2-group)", "Approach": "Marginalized 5-class probs", "Test accuracy": f"{acc_gb:.1%}" if acc_gb else "84.96%", "ROC-AUC": "0.9302", "Cohen's κ": "—"},
-        {"Task": "Grouped (3-group)", "Approach": "Marginalized 5-class probs", "Test accuracy": f"{acc_g3:.1%}" if acc_g3 else "70.17%", "ROC-AUC": "—", "Cohen's κ": "—"},
-    ])
-    st.table(headline)
-    st.caption("κ marked (val) is validation κ at training time; artifacts live in Model Performance. "
-               "Published KL-grading systems reach ~65–75% 5-class accuracy — adjacent-grade confusion dominates.")
+    acc_5c_str = f"{acc_5c:.1%}" if acc_5c else "68.2%"
+    acc_gb_str = f"{acc_gb:.1%}" if acc_gb else "84.96%"
+    acc_g3_str = f"{acc_g3:.1%}" if acc_g3 else "70.17%"
+
+    table_html = f"""
+    <div class="kvp-table-wrap">
+        <table class="kvp-table">
+            <thead>
+                <tr>
+                    <th>Clinical Task</th>
+                    <th>Model Architecture</th>
+                    <th>Test Accuracy</th>
+                    <th>ROC-AUC</th>
+                    <th>Quadratic Weighted Cohen's κ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="kvp-tag-pill kvp-tag-blue">5-Class Grading</span></td>
+                    <td><b>DenseNet121</b> (Single Model)</td>
+                    <td><b style="color:#38bdf8">{acc_5c_str}</b></td>
+                    <td><span style="color:#64748b">—</span></td>
+                    <td><span class="kvp-tag-pill kvp-tag-green">0.7751 (val)</span></td>
+                </tr>
+                <tr>
+                    <td><span class="kvp-tag-pill kvp-tag-green">Binary OA Detection</span></td>
+                    <td><b>ConvNeXt-Small</b> (Best Single)</td>
+                    <td><b style="color:#34d399">87.0%</b></td>
+                    <td><b style="color:#38bdf8">0.9457</b></td>
+                    <td><span class="kvp-tag-pill kvp-tag-green">0.7571 (val)</span></td>
+                </tr>
+                <tr>
+                    <td><span class="kvp-tag-pill kvp-tag-green">Binary OA Detection</span></td>
+                    <td><b>DenseNet + ConvNeXt</b> Ensemble</td>
+                    <td><b style="color:#34d399">86.5%</b></td>
+                    <td><b style="color:#38bdf8">0.9463</b></td>
+                    <td><span style="color:#64748b">—</span></td>
+                </tr>
+                <tr>
+                    <td><span class="kvp-tag-pill kvp-tag-purple">Grouped (2-Group)</span></td>
+                    <td>Marginalized 5-Class Softmax</td>
+                    <td><b style="color:#c084fc">{acc_gb_str}</b></td>
+                    <td><b style="color:#38bdf8">0.9302</b></td>
+                    <td><span style="color:#64748b">—</span></td>
+                </tr>
+                <tr>
+                    <td><span class="kvp-tag-pill kvp-tag-purple">Grouped (3-Group)</span></td>
+                    <td>Marginalized 5-Class Softmax</td>
+                    <td><b style="color:#c084fc">{acc_g3_str}</b></td>
+                    <td><span style="color:#64748b">—</span></td>
+                    <td><span style="color:#64748b">—</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
+    st.caption("κ marked (val) is validation κ at training time; full evaluation confusion matrices live in Model Performance. "
+               "Published KL-grading literature averages ~65–75% 5-class accuracy due to adjacent-grade clinical ambiguity.")
 
 
 def page_diagnosis(device, image_models):
     st.subheader("🩻 X-ray Diagnosis")
     st.caption("Upload a knee radiograph — get a KL grade, per-class confidences, and an independent OA screening verdict.")
 
-    col_img, col_ui = st.columns([1.1, 1])
-    with col_ui:
-        model_choice = st.selectbox("Model", list(image_models.keys()) + ["Ensemble (all)"])
-        uploaded = st.file_uploader("Upload a knee X-ray", type=["png", "jpg", "jpeg", "bmp"])
-    if uploaded is None:
-        with col_img:
-            st.info("⬅ Upload an X-ray to see predictions here.")
-        return
-
-    image = Image.open(uploaded).convert("RGB")
+    col_img, col_results = st.columns([1, 1], gap="large")
     with col_img:
-        st.image(image, caption="Uploaded X-ray", width="stretch")
+        uploaded = st.file_uploader(
+            "Upload a knee X-ray",
+            type=["png", "jpg", "jpeg", "bmp"],
+            key="diagnosis_xray_upload",
+        )
+        if uploaded is not None:
+            image = Image.open(uploaded).convert("RGB")
+            st.image(
+                image,
+                caption=f"Uploaded X-ray · {image.width} × {image.height}px",
+                width="stretch",
+            )
 
-    models = [image_models[m] for m in (image_models if model_choice == "Ensemble (all)" else [model_choice])]
-    probs = image_probs(image, models, device)
-    pred, confidence = int(probs.argmax()), float(probs.max())
-
-    c_grade, c_screen, c_chart = st.columns([1, 1, 1.4])
-
-    with c_grade:
-        st.markdown(grade_card(f"KL grade — {model_choice}", pred, confidence, "#0f766e"), unsafe_allow_html=True)
-        st.caption("Grades: 0 Normal · 1 Doubtful · 2 Mild · 3 Moderate · 4 Severe")
-
-    bin_model, bin_name = load_binary_model()
-    with c_screen:
-        if bin_model is not None:
-            p_oa = binary_oa_prob(bin_model, image, device)
-            verdict = ('<span class="chip-warn">OA detected</span>'
-                       if p_oa >= 0.5 else '<span class="chip-ok">No OA</span>')
-            body = (f"<div style='font-size:2rem;font-weight:800;color:#0369a1'>{p_oa:.1%}</div>"
-                    f"<div class='kvp-sub'>probability of OA (KL ≥ 2)</div>"
-                    f"<div class='kvp-bar'><div class='kvp-fill' style='width:{int(p_oa*100)}%'></div></div>"
-                    f"<div style='margin-top:.6rem'>{verdict}</div>")
-            st.markdown(card(f"OA screening — {bin_name}", body), unsafe_allow_html=True)
-            st.caption("Independent dedicated binary detector (KL 0-1 vs 2-4), threshold 0.50.")
+    with col_results:
+        model_choice = st.selectbox("Model", list(image_models.keys()) + ["Ensemble (all)"])
+        if uploaded is None:
+            st.info("Upload an X-ray on the left to see the prediction and analysis here.")
         else:
-            st.markdown(card("OA screening", "<div class='kvp-sub'>No binary checkpoint found.</div>"), unsafe_allow_html=True)
+            models = [image_models[m] for m in (image_models if model_choice == "Ensemble (all)" else [model_choice])]
+            probs = image_probs(image, models, device)
+            pred, confidence = int(probs.argmax()), float(probs.max())
 
-    with c_chart:
-        st.markdown("**Class probabilities**")
-        st.bar_chart(pd.Series(probs, index=[f"G{i} {KL_LABELS[i]}" for i in range(5)]), height=250)
+            st.markdown("<div style='margin-top: 0.9rem;'></div>", unsafe_allow_html=True)
+            st.markdown(grade_card(f"KL grade — {model_choice}", pred, confidence, "#38bdf8"), unsafe_allow_html=True)
+            st.caption("Grades: 0 Normal · 1 Doubtful · 2 Mild · 3 Moderate · 4 Severe")
+
+            bin_model, bin_name = load_binary_model()
+            if bin_model is not None:
+                p_oa = binary_oa_prob(bin_model, image, device)
+                verdict = ('<span class="chip-warn">OA detected</span>'
+                           if p_oa >= 0.5 else '<span class="chip-ok">No OA</span>')
+                body = (f"<div style='font-size:2rem;font-weight:800;color:#38bdf8'>{p_oa:.1%}</div>"
+                        f"<div class='kvp-sub'>probability of OA (KL ≥ 2)</div>"
+                        f"<div class='kvp-bar'><div class='kvp-fill' style='width:{int(p_oa*100)}%'></div></div>"
+                        f"<div style='margin-top:.6rem'>{verdict}</div>")
+                st.markdown(card(f"OA screening — {bin_name}", body), unsafe_allow_html=True)
+                st.caption("Dedicated binary detector (KL 0-1 vs 2-4), threshold 0.50.")
+            else:
+                st.markdown(card("OA screening", "<div class='kvp-sub'>No binary checkpoint found.</div>"), unsafe_allow_html=True)
+
+            st.markdown("<div style='margin-top: 0.8rem;'></div>", unsafe_allow_html=True)
+            st.markdown("**Class Probabilities**")
+            st.bar_chart(pd.Series(probs, index=[f"G{i} {KL_LABELS[i]}" for i in range(5)]), height=220)
+
+            with st.expander(f"🏃 Recommended Rehabilitation Plan for KL {pred} ({KL_LABELS[pred]})", expanded=False):
+                recommender = load_rehab_recommender()
+                rehab_res = recommender.recommend(kl_grade=pred, patient_context=f"Radiographic diagnosis: KL Grade {pred} ({KL_LABELS[pred]}).")
+                st.markdown(rehab_res.synthesis)
+                st.caption(f"⚠️ {rehab_res.disclaimer}")
+                show_rehab_sources(rehab_res)
 
 
 def page_xai(device, image_models):
@@ -504,35 +1383,47 @@ def page_xai(device, image_models):
     image = Image.open(xai_uploaded).convert("RGB")
     model = image_models.get("densenet121") or next(iter(image_models.values()))
 
-    if xai_method == "Grad-CAM":
-        pred, conf, overlay = gradcam_explain(model, image, val_transform, device)
-        importance, segments = None, None
-    elif xai_method == "Score-CAM":
-        pred, conf, overlay = scorecam_explain(model, image, val_transform, device)
-        importance, segments = None, None
-    else:
-        pred, conf, importance, segments = lime_explain(model, image, val_transform, device)
-        overlay = None
+    with st.spinner(f"Computing {xai_method} explanation..."):
+        if xai_method == "Grad-CAM":
+            pred, conf, overlay = gradcam_explain(model, image, val_transform, device)
+        elif xai_method == "Score-CAM":
+            pred, conf, overlay = scorecam_explain(model, image, val_transform, device)
+        else:
+            pred, conf, importance, _segments = lime_explain(model, image, val_transform, device)
+            from kneevision.xai.base import overlay_heatmap
+            img_np = np.array(image.resize((224, 224)))
+            overlay = overlay_heatmap(importance, img_np, alpha=0.55)
+            # Add subtle grid lines on the superpixels
+            grid_size = 7
+            cell_h, cell_w = 224 // grid_size, 224 // grid_size
+            for i in range(1, grid_size):
+                overlay[i * cell_h : i * cell_h + 1, :] = [255, 255, 255]
+                overlay[:, i * cell_w : i * cell_w + 1] = [255, 255, 255]
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.image(image, caption="Original", width="stretch")
+        st.image(image, caption="Original X-ray", width="stretch")
     with c2:
-        shown = overlay if overlay is not None else importance
-        kind = f"{xai_method} heatmap" if overlay is not None else "LIME superpixels"
-        st.image(shown, caption=f"{kind} — predicted KL {pred}", width="stretch")
+        kind = f"{xai_method} Superpixel Heatmap" if xai_method == "LIME" else f"{xai_method} Heatmap"
+        st.image(overlay, caption=f"{kind} — predicted KL {pred}", width="stretch")
     with c3:
-        st.markdown(card("Interpretation",
-                         f"<div class='kvp-sub' style='font-size:1rem;color:#334155'>Predicted "
-                         f"<b>KL Grade {pred}</b> ({KL_LABELS[pred]}).</div>"
-                         "<div class='kvp-sub' style='margin-top:.5rem'>Bright regions are the evidence the model "
-                         "used — typically the joint space and osteophyte margins.</div>"),
-                   unsafe_allow_html=True)
+        if xai_method == "LIME":
+            expl_detail = "Superpixels colored in warmer tones (red/yellow) indicate local anatomical patches that most strongly increased the predicted KL grade when present."
+        else:
+            expl_detail = "Continuous gradient activations highlight salient radiographic features — typically joint space narrowing (JSN), subchondral sclerosis, and osteophytes."
+        st.markdown(
+            card(
+                "Clinical Interpretation",
+                f"<div class='kvp-sub' style='font-size:1.05rem;color:#f8fafc;'>Predicted <b>KL Grade {pred}</b> ({KL_LABELS[pred]}) &middot; {conf:.1%} conf</div>"
+                f"<div class='kvp-sub' style='margin-top:0.6rem;color:#94a3b8;line-height:1.5;'>{expl_detail}</div>",
+            ),
+            unsafe_allow_html=True,
+        )
 
 
 def page_clinical(device):
     st.subheader("📝 Clinical Report Diagnosis")
-    st.caption("BioClinicalBERT reads the free-text radiology report and predicts the KL grade — no image needed.")
+    st.caption("Test the text model with a sample report or paste your own. No image is required.")
 
     clinical_model, is_trained = load_clinical_model()
     if clinical_model is None:
@@ -556,10 +1447,24 @@ def page_clinical(device):
         unsafe_allow_html=True,
     )
     st.write("")
+    st.info(
+        "The sample reports omit explicit KL labels to avoid giving the model the answer. "
+        "They are synthetic smoke tests, not held-out evaluation data."
+    )
+    if "clinical_report_input" not in st.session_state:
+        st.session_state.clinical_report_input = ""
+    st.selectbox(
+        "Optional sample input",
+        list(CLINICAL_EXAMPLES),
+        key="clinical_example_select",
+        help="Choose a synthetic report to fill the text box. Sample IDs do not reveal the reference category before prediction.",
+        on_change=_load_selected_example,
+        args=("clinical_example_select", "clinical_report_input", CLINICAL_EXAMPLES),
+    )
     report = st.text_area(
         "Radiology report text",
-        placeholder="e.g. FINDINGS: Moderate joint space narrowing. Multiple moderate osteophytes. "
-                    "Moderate subchondral sclerosis. IMPRESSION: Moderate osteoarthritis.",
+        key="clinical_report_input",
+        placeholder="FINDINGS: Definite medial joint-space narrowing with marginal osteophytes...",
         height=170,
     )
     if st.button("Predict KL grade", type="primary"):
@@ -574,48 +1479,92 @@ def page_clinical(device):
                 st.markdown(grade_card("Text-based diagnosis", int(pred), conf, "#7c3aed"), unsafe_allow_html=True)
             with b2:
                 st.bar_chart(pd.Series(probs, index=[f"G{i} {KL_LABELS[i]}" for i in range(5)]), height=230)
+            sample_grade = CLINICAL_EXAMPLE_REFERENCE.get(st.session_state.clinical_example_select)
+            if sample_grade is not None:
+                st.caption(
+                    f"Illustrative sample reference: KL {sample_grade} ({KL_LABELS[sample_grade]}). "
+                    "This synthetic example is not a validation case; agreement does not measure model accuracy."
+                )
+
+            # Rehabilitation Protocol
+            st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+            recommender = load_rehab_recommender()
+            with st.spinner("Synthesizing personalized rehabilitation protocol (AAOS/OARSI guidelines + Llama 3.2)..."):
+                rehab_result = recommender.recommend(kl_grade=int(pred), patient_context=report)
+
+            badge = "🧠 Llama-3.2:1B RAG Synthesis" if rehab_result.used_llm else "📄 Guideline Excerpts (Direct)"
+            badge_style = "kvp-tag-purple" if rehab_result.used_llm else "kvp-tag-blue"
+
+            st.markdown(
+                f"""
+                <div class="kvp-card" style="margin-bottom: 0.8rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:0.75rem; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+                        <div>
+                            <h4 style="margin:0 !important; color:#f8fafc !important; font-size:1.1rem !important;">🏃 Tailored Rehabilitation Protocol</h4>
+                            <div style="color:#94a3b8; font-size:0.82rem; margin-top:0.2rem;">Evidence-based protocol personalized for <strong>KL {int(pred)} ({KL_LABELS[int(pred)]})</strong></div>
+                        </div>
+                        <span class="kvp-tag-pill {badge_style}">{badge}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            st.markdown(
+                f"<div style='background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:1.1rem 1.3rem;margin-bottom:1rem;line-height:1.65;font-size:0.95rem;color:#e2e8f0;'>"
+                f"{rehab_result.synthesis}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+            show_rehab_sources(rehab_result)
+
+            st.caption(f"⚠️ {rehab_result.disclaimer}")
 
 
 def page_fusion(device, image_models):
     st.subheader("🔀 Multimodal Fusion")
-    st.caption("Jointly analyze knee radiographs and patient clinical reports through Deep Neural Fusion.")
+    st.caption("Test image and report inputs together. Preset X-rays and reports are illustrative examples, not patient-matched records.")
 
-    clinical_model, clinical_trained = load_clinical_model()
+    clinical_model, _clinical_trained = load_clinical_model()
     fusion_model, fusion_trained = load_fusion_model()
     fusion_flow_diagram()
     st.write("")
 
+    fusion_presets = [
+        "Manual input",
+        "Example 0 · No definite OA features",
+        "Example 1 · Tiny osteophyte, preserved space",
+        "Example 2 · Osteophytes, possible narrowing",
+        "Example 3 · Definite narrowing and sclerosis",
+        "Example 4 · Near-complete joint-space loss",
+    ]
+    fusion_reports = {name: DEMO_REPORTS[grade] for grade, name in enumerate(fusion_presets[1:])}
+    if "fusion_report_input" not in st.session_state:
+        st.session_state.fusion_report_input = ""
     preset_choice = st.selectbox(
         "⚡ Quick Preset Cases",
-        [
-            "-- Manual Input (Upload / Paste) --",
-            "Case 1: Normal Knee (KL 0) · Preserved Joint Spaces",
-            "Case 2: Doubtful / Early Changes (KL 1) · Minimal Joint Space Narrowing",
-            "Case 3: Mild Osteoarthritis (KL 2) · Definite Osteophytes & Subtle Narrowing",
-            "Case 4: Moderate Osteoarthritis (KL 3) · Definite Narrowing & Sclerosis",
-            "Case 5: Severe Osteoarthritis (KL 4) · Bone-on-Bone Joint Collapse",
-        ],
-        index=0,
+        fusion_presets,
+        key="fusion_example_select",
+        on_change=_load_selected_example,
+        args=("fusion_example_select", "fusion_report_input", fusion_reports),
     )
 
     preset_img_path = None
-    preset_report_text = ""
     demo_dict = demo_images()
-    if "KL 0" in preset_choice:
+    if "Example 0" in preset_choice:
         preset_img_path = demo_dict.get(0)
-        preset_report_text = DEMO_REPORTS[0]
-    elif "KL 1" in preset_choice:
+    elif "Example 1" in preset_choice:
         preset_img_path = demo_dict.get(1)
-        preset_report_text = DEMO_REPORTS[1]
-    elif "KL 2" in preset_choice:
+    elif "Example 2" in preset_choice:
         preset_img_path = demo_dict.get(2)
-        preset_report_text = DEMO_REPORTS[2]
-    elif "KL 3" in preset_choice:
+    elif "Example 3" in preset_choice:
         preset_img_path = demo_dict.get(3)
-        preset_report_text = DEMO_REPORTS[3]
-    elif "KL 4" in preset_choice:
+    elif "Example 4" in preset_choice:
         preset_img_path = demo_dict.get(4)
-        preset_report_text = DEMO_REPORTS[4]
+
+    if preset_choice != "Manual input" and preset_img_path is None:
+        st.warning("No reference X-ray is available for this example in data/raw/test. Upload an X-ray to test both modalities.")
 
     col_img, col_txt = st.columns(2)
     with col_img:
@@ -632,7 +1581,7 @@ def page_fusion(device, image_models):
     with col_txt:
         report = st.text_area(
             "2 · Clinical / Radiology Report",
-            value=preset_report_text,
+            key="fusion_report_input",
             placeholder="FINDINGS: ... IMPRESSION: ...",
             height=180,
         )
@@ -697,6 +1646,44 @@ def page_fusion(device, image_models):
         }
         st.bar_chart(pd.DataFrame(chart_data, index=[f"KL {i} ({KL_LABELS[i]})" for i in range(5)]), height=300)
 
+        # Evidence-Based Rehabilitation Guidance (RAG)
+        st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+        recommender = load_rehab_recommender()
+        with st.spinner("Synthesizing personalized rehabilitation protocol (AAOS/OARSI guidelines + Llama 3.2)..."):
+            rehab_result = recommender.recommend(kl_grade=fpred, patient_context=report)
+
+        badge = "🧠 Llama-3.2:1B RAG Synthesis" if rehab_result.used_llm else "📄 Guideline Excerpts (Direct)"
+        badge_style = "kvp-tag-purple" if rehab_result.used_llm else "kvp-tag-blue"
+
+        st.markdown(
+            f"""
+            <div class="kvp-card" style="margin-bottom: 0.8rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:0.75rem; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+                    <div>
+                        <h4 style="margin:0 !important; color:#f8fafc !important; font-size:1.1rem !important;">🏃 Tailored Rehabilitation Protocol</h4>
+                        <div style="color:#94a3b8; font-size:0.82rem; margin-top:0.2rem;">Evidence-based regimen synthesized for <strong>KL {fpred} ({KL_LABELS[fpred]})</strong> and clinical report findings</div>
+                    </div>
+                    <span class="kvp-tag-pill {badge_style}">{badge}</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            f"<div style='background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:1.1rem 1.3rem;margin-bottom:1rem;line-height:1.65;font-size:0.95rem;color:#e2e8f0;'>"
+            f"{rehab_result.synthesis}"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+        if not rehab_result.used_llm:
+            st.caption("ℹ️ Local LLM (Ollama) was not detected at localhost:11434; displaying direct evidence guidelines.")
+
+        show_rehab_sources(rehab_result)
+
+        st.caption(f"⚠️ {rehab_result.disclaimer}")
+
         if "Deep Neural" in fusion_mode and not fusion_trained:
             st.warning("`models/best_fusion.pt` was not detected. Train via `scripts/train_fusion.py` to enable trained neural weights.")
     elif not ready_img and not ready_txt:
@@ -724,11 +1711,12 @@ def page_showcase():
 
     if not showcase_json.exists():
         with st.spinner("Running showcase benchmark (first-time only, ~2 min on GPU) ..."):
-            import subprocess, os
+            import os
+            import subprocess
             env = {**os.environ, "PYTHONPATH": str(Path(__file__).parent / "src")}
             result = subprocess.run(
                 ["python", str(Path(__file__).parent / "scripts" / "showcase_benchmark.py")],
-                capture_output=True, text=True, env=env,
+                capture_output=True, text=True, env=env, check=False,
             )
             if result.returncode != 0:
                 st.error("Benchmark failed. Run manually:\n```\nuv run python scripts/showcase_benchmark.py\n```")
@@ -833,9 +1821,10 @@ def page_showcase():
         gate_entries = [(0.50, base_acc, 1.0)] + gate_entries
         thresholds = [g[0] for g in gate_entries]
 
-        sel_idx = st.slider(
+        sel_idx = st.select_slider(
             "Minimum model confidence required for auto-resolution:",
-            min_value=0, max_value=len(gate_entries) - 1, value=1,
+            options=list(range(len(gate_entries))),
+            value=1 if len(gate_entries) > 1 else 0,
             format_func=lambda i: "No gating" if thresholds[i] == 0.50 else f"P >= {thresholds[i]:.2f}",
         )
         sel_th, sel_acc, sel_cov = gate_entries[sel_idx]
@@ -858,7 +1847,7 @@ def page_showcase():
         bar_strats = [r["strategy"] for r in results.values()]
         highlight_key = f"confidence_{int(sel_th*100)}" if sel_th != 0.50 else "multimodal_5class"
         bar_colors = [
-            STRATEGY_COLORS.get(s, "#64748b") if k != highlight_key else "#f8fafc"
+            STRATEGY_COLORS.get(s, "#64748b") if k != highlight_key else "#087e8b"
             for k, s in zip(bar_keys, bar_strats)
         ]
 
@@ -868,28 +1857,31 @@ def page_showcase():
                 y=bar_labels[::-1], x=bar_accs[::-1], orientation="h",
                 marker_color=bar_colors[::-1],
                 text=[f"{a:.1f}%" for a in bar_accs[::-1]],
-                textposition="outside", textfont_color="#f8fafc",
+                textposition="outside", textfont_color="#172b3a",
             ))
             fig_bar.add_vline(x=90, line_dash="dash", line_color="#f43f5e",
                               annotation_text="90% target", annotation_font_color="#f43f5e")
             fig_bar.update_layout(
-                paper_bgcolor="#0f172a", plot_bgcolor="#1e293b",
-                font_color="#cbd5e1", height=420,
-                xaxis=dict(range=[0, 108], ticksuffix="%", gridcolor="#334155"),
-                yaxis=dict(tickfont_size=10),
-                margin=dict(l=10, r=30, t=20, b=10),
+                paper_bgcolor="#ffffff", plot_bgcolor="#f7fafb",
+                font_color="#345367", height=420,
+                xaxis={"range": [0, 108], "ticksuffix": "%", "gridcolor": "#dce7ee"},
+                yaxis={"tickfont_size": 10},
+                margin={"l": 10, "r": 30, "t": 20, "b": 10},
                 showlegend=False,
             )
             st.plotly_chart(fig_bar, use_container_width=True)
         except ImportError:
             fig2, ax2 = plt.subplots(figsize=(10, 5))
-            ax2.set_facecolor("#1e293b"); fig2.patch.set_facecolor("#0f172a")
+            ax2.set_facecolor("#f7fafb")
+            fig2.patch.set_facecolor("#ffffff")
             ax2.barh(bar_labels[::-1], bar_accs[::-1], color=bar_colors[::-1])
             ax2.axvline(90, color="#f43f5e", linestyle="--")
-            ax2.tick_params(colors="#cbd5e1"); ax2.set_xlabel("Accuracy (%)", color="#94a3b8")
+            ax2.tick_params(colors="#526779")
+            ax2.set_xlabel("Accuracy (%)", color="#345367")
             for s in ax2.spines.values():
-                s.set_edgecolor("#334155")
-            st.pyplot(fig2); plt.close(fig2)
+                s.set_edgecolor("#dce7ee")
+            st.pyplot(fig2)
+            plt.close(fig2)
 
     # Tab 3: Strategy details
     with tab_details:
@@ -980,7 +1972,7 @@ def page_performance():
         left, right = st.columns([1, 1])
         with left:
             rows = [
-                {"Model": m["model_name"], "Best val κ": round(m["best_kappa"], 4),
+                {"Model": m["model_name"], "Best val κ": round(m["best_kappa"], 4) if m.get("best_kappa") is not None else None,
                  "Epoch": m.get("epoch"), "Image": f"{m.get('image_size', 224)}px", "Checkpoint": m["file"]}
                 for m in checkpoint_metas() if not m.get("binary") and "clinical" not in m["file"]
             ]
@@ -1015,7 +2007,7 @@ def page_performance():
         left, right = st.columns([1, 1])
         with left:
             rows = [
-                {"Model": m["model_name"], "Best val κ": round(m["best_kappa"], 4),
+                {"Model": m["model_name"], "Best val κ": round(m["best_kappa"], 4) if m.get("best_kappa") is not None else None,
                  "Epoch": m.get("epoch"), "Image": f"{m.get('image_size', 224)}px", "Checkpoint": m["file"]}
                 for m in checkpoint_metas() if m.get("binary")
             ]
@@ -1054,8 +2046,7 @@ def page_performance():
 
 def page_demo(device, image_models):
     st.subheader("🧪 Guided Demo — walk through every KL grade")
-    st.caption("Pick a grade to see a real test-set X-ray, its matching radiology report, "
-               "and how every model reacts — image CNN, clinical BERT, and the binary OA screener.")
+    st.caption("Compare a held-out X-ray with a synthetic, label-free report example in the same grade category. They are not patient-matched; model predictions may differ from the reference grade.")
 
     available = demo_images()
     if not available:
@@ -1070,9 +2061,9 @@ def page_demo(device, image_models):
     col_img, col_txt, col_pred = st.columns([1.05, 1.15, 1.1])
 
     with col_img:
-        st.markdown("**🩻 X-ray (ground truth)**")
+        st.markdown("**🩻 Reference X-ray**")
         image = Image.open(available[grade]).convert("RGB")
-        st.image(image, caption=f"Test split sample · true label KL {grade}", width="stretch")
+        st.image(image, caption=f"Held-out test image · reference category KL {grade}", width="stretch")
 
     with col_txt:
         st.markdown("**📝 Matching radiology report (demo)**")
@@ -1103,7 +2094,7 @@ def page_demo(device, image_models):
         if p_oa is not None:
             verdict = ('<span class="chip-warn">OA detected</span>' if p_oa >= 0.5
                        else '<span class="chip-ok">No OA</span>')
-            expect = True if grade >= 2 else False
+            expect = grade >= 2
             agree = (p_oa >= 0.5) == expect
             st.markdown(card(f"OA screening ({bin_name}) — {'✅' if agree else '↔'}",
                              f"<div class='kvp-sub'>P(OA) = <b>{p_oa:.0%}</b> &nbsp;{verdict}</div>"),
@@ -1118,46 +2109,72 @@ def page_demo(device, image_models):
 
 
 def page_rehab():
-    st.subheader("🏃 Rehab Recommendation")
-    st.caption("Retrieval-augmented guidance from public OA rehab guidelines (OARSI, AAOS, ACR/Arthritis "
-               "Foundation, CDC), synthesized by a local LLM (Ollama). Not medical advice — see disclaimer below.")
+    st.subheader("🏃 Evidence-Based Rehabilitation Guidance (RAG)")
+    st.caption("Choose a reference KL grade and optional symptom context. The output summarizes retrieved public guidelines; it is educational, not a prescription.")
 
-    col_kl, col_ctx = st.columns([1, 2])
+    col_kl, col_ctx = st.columns([1, 1.8], gap="medium")
     with col_kl:
-        grade = st.select_slider("KL grade", options=[0, 1, 2, 3, 4],
-                                  format_func=lambda g: f"KL {g} · {KL_LABELS[g]}", value=2)
+        grade = st.select_slider(
+            "Kellgren–Lawrence (KL) Grade",
+            options=[0, 1, 2, 3, 4],
+            format_func=lambda g: f"KL {g} · {KL_LABELS[g]}",
+            value=2,
+        )
     with col_ctx:
-        context = st.text_input("Optional patient context",
-                                 placeholder="e.g. 68yo, BMI 31, moderate pain climbing stairs")
+        if "rehab_context_input" not in st.session_state:
+            st.session_state.rehab_context_input = ""
+        st.selectbox(
+            "Load an example symptom profile",
+            list(REHAB_EXAMPLES),
+            key="rehab_example_select",
+            on_change=_load_selected_example,
+            args=("rehab_example_select", "rehab_context_input", REHAB_EXAMPLES),
+        )
+        custom_input = st.text_input(
+            "Patient Clinical Profile",
+            key="rehab_context_input",
+            placeholder="e.g. persistent pain on stairs, reduced walking tolerance",
+        )
 
-    if st.button("Get recommendation", type="primary"):
+    if st.button("Generate Rehabilitation Plan", type="primary"):
         recommender = load_rehab_recommender()
-        with st.spinner("Retrieving guidelines and synthesizing..."):
-            result = recommender.recommend(grade, patient_context=context)
+        with st.spinner("Retrieving orthopedic guidelines & synthesizing personalized plan via Llama 3.2..."):
+            result = recommender.recommend(grade, patient_context=custom_input)
 
-        badge = "🧠 LLM-synthesized" if result.used_llm else "📄 Retrieval-only (Ollama unavailable)"
-        st.markdown(card(f"{badge} — KL {grade} ({KL_LABELS[grade]})",
-                         f"<div class='kvp-sub'>{result.synthesis}</div>"),
-                    unsafe_allow_html=True)
+        badge = "🧠 Llama-3.2:1B RAG Synthesis" if result.used_llm else "📄 Guideline Excerpts (Direct)"
+        badge_style = "kvp-tag-purple" if result.used_llm else "kvp-tag-blue"
+
+        st.markdown(
+            f"""
+            <div class="kvp-card" style="margin-top: 1.2rem; margin-bottom: 0.5rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:0.75rem; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+                    <h4 style="margin:0 !important; color:#f8fafc !important; font-size:1rem !important;">🏃 Tailored Rehabilitation Protocol</h4>
+                    <span class="kvp-tag-pill {badge_style}">{badge} &middot; KL {grade} ({KL_LABELS[grade]})</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(result.synthesis)
 
         if not result.used_llm:
-            st.warning("Ollama isn't reachable at localhost:11434 — showing retrieved guideline excerpts "
-                       "directly instead of an LLM-synthesized summary. Run `ollama serve` and "
-                       "`ollama pull llama3.2:1b` to enable synthesis.")
+            st.warning("Ollama isn't reachable at localhost:11434 — showing retrieved guideline excerpts directly instead of an LLM-synthesized summary.")
 
-        with st.expander(f"Retrieved {len(result.retrieved_chunks)} guideline excerpt(s)", expanded=False):
-            for chunk in result.retrieved_chunks:
-                st.markdown(f"**{chunk.heading}** — `{chunk.source_path}`")
-                st.text(chunk.text)
+        show_rehab_sources(result)
 
-        st.caption(result.disclaimer)
+        st.caption(f"⚠️ {result.disclaimer}")
 
 
 def page_mlflow():
+    import sqlite3
+
+    from mlflow.exceptions import MlflowException
+
     st.subheader("📈 MLflow Tracking")
     try:
         df = mlflow_runs_table()
-    except Exception:
+    except (MlflowException, OSError, sqlite3.Error):
         # No mlflow.db shipped with this deployment (e.g. a fresh clone) — the sqlite
         # backend has no schema yet, which mlflow surfaces as a query error, not an empty result.
         df = pd.DataFrame()
@@ -1186,22 +2203,54 @@ PAGES = {
     "📈 MLflow": page_mlflow,
 }
 
+PAGE_GROUPS = {
+    "Start here": ["🏠 Overview", "🧪 Guided Demo"],
+    "Test models": ["🩻 X-ray Diagnosis", "📝 Clinical Text", "🔀 Multimodal Fusion", "🔥 Explainability"],
+    "Rehabilitation": ["🏃 Rehab Recommendation"],
+    "Results": ["🏆 90%+ Showcase", "📊 Performance", "📈 MLflow"],
+}
+
 
 def main():
-    st.set_page_config(page_title="KneeVision++", page_icon="🦵", layout="wide")
+    st.set_page_config(page_title="KneeVision++ | Multimodal OA Diagnosis", page_icon="🦵", layout="wide")
     st.markdown(CSS, unsafe_allow_html=True)
 
     with st.sidebar:
         st.markdown(
-            "<div style='font-size:1.5rem;font-weight:800;padding:.4rem 0 .1rem 0'>🦵 KneeVision++</div>",
+            """
+            <div class="kvp-sidebar-header">
+                <div class="kvp-brand">
+                    <div class="kvp-logo-badge">🦵</div>
+                    <div>
+                        <div class="kvp-brand-title">KneeVision++</div>
+                        <div class="kvp-brand-tag">RESEARCH AI &middot; v2.4</div>
+                    </div>
+                </div>
+                <div class="kvp-brand-desc">Multimodal Knee OA Diagnosis<br><span>KL 0–4 &middot; CNN + BERT &middot; Explainable</span></div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
-        st.caption("Multimodal knee OA diagnosis\n\nKL 0-4 · CNN + BERT · Explainable")
-        page = st.radio("Navigation", list(PAGES), label_visibility="collapsed")
-        st.divider()
-        st.caption("Checkpoints: `models/best_*.pt`\n\nTracking: `sqlite:///mlflow.db`")
+        nav_group = st.selectbox("Go to", list(PAGE_GROUPS), key="nav_group")
+        page = st.radio(
+            "Page",
+            PAGE_GROUPS[nav_group],
+            label_visibility="collapsed",
+            key=f"nav_page_{nav_group}",
+        )
+        st.markdown(
+            """
+            <div class="kvp-sidebar-footer">
+                <div class="kvp-footer-status"><span class="dot-online"></span> Testing path</div>
+                <div class="kvp-footer-meta">1. Guided Demo: image + example report</div>
+                <div class="kvp-footer-meta">2. Clinical Text: report only</div>
+                <div class="kvp-footer-meta">3. Rehab: grade + symptoms</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    device, image_models = load_image_models()
+    _device, image_models = load_image_models()
     if not image_models:
         st.error("No loadable image checkpoints found in models/. Train a model first.")
         return

@@ -1,7 +1,7 @@
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 
-from kneevision.config.settings import CLINICAL_MODEL_NAME, CLINICAL_MAX_LENGTH
+from kneevision.config.settings import CLINICAL_MAX_LENGTH, CLINICAL_MODEL_NAME
 
 
 class ClinicalTextDataset(Dataset):

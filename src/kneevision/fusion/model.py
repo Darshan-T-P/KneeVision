@@ -1,13 +1,14 @@
 from pathlib import Path
-import numpy as np
-from PIL import Image
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
-from kneevision.models.image_model import KneeXRayClassifier
+import numpy as np
+import torch
+import torch.nn.functional as F
+from PIL import Image
+from torch import nn
+
 from kneevision.clinical.model import ClinicalTextModel
 from kneevision.data.transforms import val_transform
+from kneevision.models.image_model import KneeXRayClassifier
 from kneevision.training.losses import ordinal_to_probs
 
 

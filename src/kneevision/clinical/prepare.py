@@ -1,6 +1,6 @@
+import csv
 import random
 from pathlib import Path
-import csv
 
 TEXT_EXTENSIONS = {".txt", ".md"}
 

@@ -1,9 +1,11 @@
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
 from PIL import Image
-from .base import overlay_heatmap, get_prediction
+
 from kneevision.training.losses import ordinal_to_class, ordinal_to_probs
+
+from .base import get_prediction, overlay_heatmap
 
 
 class GradCAM:
@@ -27,6 +29,7 @@ class GradCAM:
         module.register_full_backward_hook(backward_hook)
 
     def generate(self, x: torch.Tensor, class_idx: int | None = None) -> np.ndarray:
+        x = x.requires_grad_(True)
         logits = self.model(x)
         is_ordinal = getattr(self.model, "ordinal", False)
         if class_idx is None:

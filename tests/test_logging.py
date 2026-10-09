@@ -1,9 +1,7 @@
 """Tests for utils/logging.py — setup_logger behaviour."""
 import logging
 
-
 from kneevision.utils.logging import setup_logger
-
 
 # ── setup_logger ───────────────────────────────────────────────────────────────
 

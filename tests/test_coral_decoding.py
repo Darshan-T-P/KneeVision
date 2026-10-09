@@ -9,7 +9,6 @@ import torch
 
 from kneevision.training.losses import ordinal_to_class, ordinal_to_probs
 
-
 # ── ordinal_to_class: sum of rounded binary sigmoids ───────────────────────────
 
 def test_decodes_to_zero_when_all_thresholds_confident_false():

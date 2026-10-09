@@ -16,10 +16,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import numpy as np
+from evaluate import ensemble_predict
 from torch.utils.data import DataLoader
 
-from kneevision.config.settings import RAW_DATA_DIR, BATCH_SIZE, MLFLOW_ENABLED, PROJECT_ROOT
-from kneevision.models.image_model import load_trained_model
+from kneevision.config.settings import (
+    BATCH_SIZE,
+    MLFLOW_ENABLED,
+    PROJECT_ROOT,
+    RAW_DATA_DIR,
+)
 from kneevision.data.dataset import KneeXRayDataset
 from kneevision.data.prepare import get_paths_and_labels
 from kneevision.data.transforms import val_transform
@@ -27,9 +32,9 @@ from kneevision.evaluation.report import (
     classification_report_text,
     write_artifacts,
 )
+from kneevision.models.image_model import load_trained_model
 from kneevision.utils.helpers import get_device
 from kneevision.utils.logging import setup_logger
-from evaluate import ensemble_predict
 
 logger = setup_logger("evaluate_grouped")
 

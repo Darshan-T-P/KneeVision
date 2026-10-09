@@ -43,8 +43,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from kneevision.config.settings import OAI_DATA_DIR  # noqa: E402
-from kneevision.clinical.prepare import compose_clinical_report  # noqa: E402
+from kneevision.clinical.prepare import compose_clinical_report
+from kneevision.config.settings import OAI_DATA_DIR
 
 RAW_DIR = OAI_DATA_DIR / "raw"
 PROCESSED_DIR = OAI_DATA_DIR / "processed"
@@ -239,9 +239,9 @@ def build_dataset(raw_dir: Path, out_csv: Path, out_reports: Path,
         if not pid:
             continue
         vals = {}
-        for feature in clin_idx:
-            if clin_idx[feature]:
-                vals[feature] = _row_value(row, clin_header, clin_idx[feature])
+        for feature, column in clin_idx.items():
+            if column:
+                vals[feature] = _row_value(row, clin_header, column)
         clinical_by_id.setdefault(pid, {}).update(vals)
 
     records = []
@@ -255,7 +255,7 @@ def build_dataset(raw_dir: Path, out_csv: Path, out_reports: Path,
         sc = _code(_row_value(row, kxr_header, kxr_idx["side"])) if kxr_idx.get("side") else None
         side = _side_from_code(sc) if sc is not None else "right"
 
-        def kxr_grade(field):
+        def kxr_grade(field, row=row):
             col = kxr_radio_idx.get(field)
             return _code(_row_value(row, kxr_header, col)) if col else None
 

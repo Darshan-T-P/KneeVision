@@ -1,8 +1,9 @@
 from pathlib import Path
-import torch
+
 import numpy as np
-from torch.utils.data import Dataset, WeightedRandomSampler
+import torch
 from PIL import Image
+from torch.utils.data import Dataset, WeightedRandomSampler
 
 
 class KneeXRayDataset(Dataset):
@@ -62,7 +63,7 @@ class MixUpDataset(Dataset):
             y = np.random.randint(0, h - cut_h + 1)
             x = np.random.randint(0, w - cut_w + 1)
             mixed_img = img1.clone()
-            mixed_img[:, y:y + cut_h, x:x + cut_w] = img2[:, y:y + cut_h, x:x + cut_w] if isinstance(img2, torch.Tensor) else img2[:, y:y + cut_h, x:x + cut_w]
+            mixed_img[:, y:y + cut_h, x:x + cut_w] = img2[:, y:y + cut_h, x:x + cut_w]
 
         mixed_label = lam * label1_onehot + (1 - lam) * label2_onehot
         return mixed_img, mixed_label

@@ -14,13 +14,13 @@ experimental artifacts (models/*.json, reports/*.csv, reports/*.json):
 Usage:
     uv run python scripts/generate_publication_figures.py
 """
-import json
+import itertools
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 import numpy as np
 import pandas as pd
+from matplotlib import patches
 
 # Styling constants for publication
 plt.rcParams.update({
@@ -89,7 +89,7 @@ def plot_fig1_architecture_schematic():
     def draw_arrow(x1, y1, x2, y2, label=""):
         ax.annotate(
             "", xy=(x2, y2), xytext=(x1, y1),
-            arrowprops=dict(arrowstyle="->", color="#34495e", lw=1.8, shrinkA=3, shrinkB=3)
+            arrowprops={"arrowstyle": "->", "color": "#34495e", "lw": 1.8, "shrinkA": 3, "shrinkB": 3}
         )
         if label:
             ax.text((x1 + x2) / 2, (y1 + y2) / 2 + 0.15, label, ha="center", va="bottom",
@@ -291,7 +291,7 @@ def plot_fig4_error_distribution():
     ax.axvline(1.5, color="#c0392b", linestyle=":", linewidth=1.5)
     ax.text(1.55, 60, "Clinical Ordinal Safety Boundary:\nWithin-1 Accuracy: 96.92%\nWithin-2 Accuracy: 100.00%\nZero Extreme Errors (>= 3)",
             fontsize=9.5, color="#922b21", fontweight="semibold",
-            bbox=dict(boxstyle="round,pad=0.4", facecolor="#fadbd8", edgecolor="#e6b0aa", alpha=0.9))
+            bbox={"boxstyle": "round,pad=0.4", "facecolor": "#fadbd8", "edgecolor": "#e6b0aa", "alpha": 0.9})
 
     ax.set_title("Ordinal Error Distribution on Held-Out Test Set (N = 1,656)",
                  fontsize=12, fontweight="bold", pad=12)
@@ -316,9 +316,9 @@ def plot_fig5_per_class_metrics():
 
     fig, ax = plt.subplots(figsize=(10.5, 5.5))
 
-    b1 = ax.bar(x - width, precision, width, label="Precision", color="#3498db", edgecolor="#1b4f72", linewidth=0.8)
-    b2 = ax.bar(x, recall, width, label="Recall", color="#2ecc71", edgecolor="#145a32", linewidth=0.8)
-    b3 = ax.bar(x + width, f1, width, label="F1-Score", color="#9b59b6", edgecolor="#4a235a", linewidth=0.8)
+    ax.bar(x - width, precision, width, label="Precision", color="#3498db", edgecolor="#1b4f72", linewidth=0.8)
+    ax.bar(x, recall, width, label="Recall", color="#2ecc71", edgecolor="#145a32", linewidth=0.8)
+    ax.bar(x + width, f1, width, label="F1-Score", color="#9b59b6", edgecolor="#4a235a", linewidth=0.8)
 
     ax.set_ylabel("Score", fontsize=11, fontweight="bold", labelpad=8)
     ax.set_ylim(0, 1.05)
@@ -333,15 +333,15 @@ def plot_fig5_per_class_metrics():
     # Highlight KL1 discordance and KL3 under-grading
     ax.annotate("High Inter-Rater\nDiscordance\n(KL1 Recall 46.6%)",
                 xy=(1, 0.47), xytext=(1.0, 0.82),
-                arrowprops=dict(facecolor="#e67e22", shrink=0.08, width=1.2, headwidth=6),
+                arrowprops={"facecolor": "#e67e22", "shrink": 0.08, "width": 1.2, "headwidth": 6},
                 ha="center", fontsize=8.5, fontweight="bold", color="#b9770e",
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="#fef9e7", edgecolor="#f5b041", alpha=0.9))
+                bbox={"boxstyle": "round,pad=0.3", "facecolor": "#fef9e7", "edgecolor": "#f5b041", "alpha": 0.9})
 
     ax.annotate("Conservative Under-Grading\n(47.5% KL3 pred as KL2)",
                 xy=(3, 0.44), xytext=(3.0, 0.78),
-                arrowprops=dict(facecolor="#c0392b", shrink=0.08, width=1.2, headwidth=6),
+                arrowprops={"facecolor": "#c0392b", "shrink": 0.08, "width": 1.2, "headwidth": 6},
                 ha="center", fontsize=8.5, fontweight="bold", color="#922b21",
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="#fadbd8", edgecolor="#e6b0aa", alpha=0.9))
+                bbox={"boxstyle": "round,pad=0.3", "facecolor": "#fadbd8", "edgecolor": "#e6b0aa", "alpha": 0.9})
 
     fig.tight_layout()
     out_path = OUTPUT_DIR / "fig5_per_class_metrics.png"
@@ -361,7 +361,6 @@ def plot_fig6_val_vs_test_generalization():
     ci_upper = [0.8398, 66.31, 97.77, 0.6480, 0.4215]
     yerr_lower = [test_scores[i] - ci_lower[i] for i in range(len(metrics))]
     yerr_upper = [ci_upper[i] - test_scores[i] for i in range(len(metrics))]
-    yerr = [yerr_lower, yerr_upper]
 
     fig, axes = plt.subplots(1, 2, figsize=(11.5, 5), gridspec_kw={"width_ratios": [3, 2]})
 
@@ -427,7 +426,7 @@ def plot_fig7_reliability_diagram():
     labels = df["true_label"].to_numpy()
     prob_cols = [f"prob_KL{c}" for c in range(5)]
     probs = df[prob_cols].to_numpy()
-    n_samples, n_classes = probs.shape
+    _n_samples, n_classes = probs.shape
 
     fig, ax = plt.subplots(figsize=(7.5, 6.5))
 
@@ -443,7 +442,7 @@ def plot_fig7_reliability_diagram():
         c_labels = (labels == c).astype(float)
         bin_accs, bin_confs = [], []
 
-        for i, (lo, hi) in enumerate(zip(bin_edges[:-1], bin_edges[1:])):
+        for i, (lo, hi) in enumerate(itertools.pairwise(bin_edges)):
             mask = (c_probs >= lo) & (c_probs <= hi) if i == len(bin_edges) - 2 else (c_probs >= lo) & (c_probs < hi)
             if mask.sum() > 0:
                 bin_accs.append(c_labels[mask].mean())
@@ -466,7 +465,7 @@ def plot_fig7_reliability_diagram():
             "- Macro Brier Score: 0.0947\n"
             "- Multiclass Brier Score: 0.4736",
             fontsize=9.5, fontweight="semibold", color="#1b4f72",
-            bbox=dict(boxstyle="round,pad=0.5", facecolor="#eaf2f8", edgecolor="#aed6f1", alpha=0.9))
+            bbox={"boxstyle": "round,pad=0.5", "facecolor": "#eaf2f8", "edgecolor": "#aed6f1", "alpha": 0.9})
 
     ax.legend(loc="lower right", framealpha=0.9, fontsize=9)
     ax.set_title("Reliability Diagram (Calibration Curves) on Held-Out Test Set\n(N = 1,656 Samples, 10 Bins)",

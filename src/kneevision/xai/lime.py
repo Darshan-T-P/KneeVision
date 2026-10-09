@@ -1,8 +1,10 @@
-import torch
 import numpy as np
+import torch
 from PIL import Image
-from .base import get_prediction
+
 from kneevision.training.losses import ordinal_to_class
+
+from .base import get_prediction
 
 
 def _segment_grid(h: int, w: int, grid_size: int = 7) -> np.ndarray:

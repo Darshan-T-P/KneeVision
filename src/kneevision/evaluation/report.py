@@ -4,12 +4,13 @@ import base64
 import io
 from pathlib import Path
 
-import numpy as np
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+import itertools
 
+import matplotlib.pyplot as plt
 from sklearn.metrics import (
     accuracy_score,
     brier_score_loss,
@@ -95,7 +96,7 @@ def compute_calibration_metrics(labels, probs, n_bins: int = 10) -> dict[str, fl
         bin_edges = np.linspace(0, 1, n_bins + 1)
         ece_c = 0.0
         n_edges = len(bin_edges)
-        for i, (lo, hi) in enumerate(zip(bin_edges[:-1], bin_edges[1:])):
+        for i, (lo, hi) in enumerate(itertools.pairwise(bin_edges)):
             # Close the last bin on both ends so prob == 1.0 (routine after
             # softmax saturation or ordinal_to_probs's clamp/renormalize)
             # lands in a bin instead of being silently dropped from ECE.
@@ -226,7 +227,7 @@ def reliability_diagram(labels, probs, class_names=None, n_bins: int = 10,
         c_labels = (labels_arr == c).astype(float)
         accs = []
         n_edges = len(bin_edges)
-        for i, (lo, hi) in enumerate(zip(bin_edges[:-1], bin_edges[1:])):
+        for i, (lo, hi) in enumerate(itertools.pairwise(bin_edges)):
             if i == n_edges - 2:
                 mask = (c_probs >= lo) & (c_probs <= hi)
             else:

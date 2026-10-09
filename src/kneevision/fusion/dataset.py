@@ -1,12 +1,13 @@
 from pathlib import Path
 from typing import Any
-from PIL import Image
+
 import torch
+from PIL import Image
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 
-from kneevision.config.settings import CLINICAL_MODEL_NAME, CLINICAL_MAX_LENGTH
 from kneevision.clinical.prepare import compose_clinical_report, generate_report
+from kneevision.config.settings import CLINICAL_MAX_LENGTH, CLINICAL_MODEL_NAME
 
 
 class MultimodalDataset(Dataset):

@@ -1,7 +1,12 @@
-import torch
 import pytest
+import torch
 
-from kneevision.training.losses import FocalLoss, OrdinalLoss, ordinal_to_class, ordinal_to_probs
+from kneevision.training.losses import (
+    FocalLoss,
+    OrdinalLoss,
+    ordinal_to_class,
+    ordinal_to_probs,
+)
 
 
 def test_focal_loss_standard():
