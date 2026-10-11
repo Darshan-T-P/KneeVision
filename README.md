@@ -4,6 +4,11 @@
 
 [![Live Demo](https://img.shields.io/badge/Demo-Streamlit%20Cloud-FF4B4B?logo=streamlit&logoColor=white)](https://kneevision-rqfxrsksbrmvngvxm5uusl.streamlit.app/)
 [![Model Hub](https://img.shields.io/badge/%F0%9F%A4%97%20Models-Darshan13%2FKneeVision--models-yellow)](https://huggingface.co/Darshan13/KneeVision-models)
+[![Kaggle Dataset](https://img.shields.io/badge/Kaggle-Knee%20OA%20Dataset-20BEFF?logo=kaggle&logoColor=white)](https://www.kaggle.com/datasets/tommyngx/knee-osteoarthritis-dataset-with-severity)
+[![NIH / NDA OAI](https://img.shields.io/badge/NIH%20NDA-OAI%20Cohort-blue)](https://nda.nih.gov/oai)
+[![IEEE DataPort](https://img.shields.io/badge/IEEE%20DataPort-Radiology%20Reports-00629B?logo=ieee&logoColor=white)](https://doi.org/10.21227/vcpg-qm58)
+[![Roboflow Universe](https://img.shields.io/badge/Roboflow-Knee%20OA%20Detection-purple?logo=roboflow&logoColor=white)](https://universe.roboflow.com/srm-zubpb/knee-oa-detection)
+[![Mendeley Data](https://img.shields.io/badge/Mendeley-Tibial%20Spiking%20Dataset-FF3366)](https://doi.org/10.17632/6gbptmgp3y.1)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.14-blue?logo=python&logoColor=white)](https://github.com/astral-sh/uv)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x%20CUDA-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![FastAPI](https://img.shields.io/badge/API-FastAPI%20REST-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -30,20 +35,29 @@ The system integrates:
 
 ## 🌐 Live Demos, Hubs & Deployed Links
 
-- 🚀 **Streamlit Cloud Live App:**  
-  [https://kneevision-rqfxrsksbrmvngvxm5uusl.streamlit.app/](https://kneevision-rqfxrsksbrmvngvxm5uusl.streamlit.app/)  
-  *(Cold starts automatically pull ~1 GB of model weights directly from the Hugging Face Hub; please allow 60–90 seconds on first initialization).*
-- 🤗 **Hugging Face Model Repository:**  
-  [https://huggingface.co/Darshan13/KneeVision-models](https://huggingface.co/Darshan13/KneeVision-models)  
-  Contains PyTorch checkpoints (`.pt`) and evaluation metadata (`.json`) for:
+### Quick Reference Portal
+
+| Resource / System | Description | Direct URL |
+| :--- | :--- | :--- |
+| **🚀 Streamlit Live App** | Interactive cloud deployment with inference, Grad-CAM/LIME, and RAG rehab advisor | [kneevision-rqfxrsksbrmvngvxm5uusl.streamlit.app](https://kneevision-rqfxrsksbrmvngvxm5uusl.streamlit.app/) |
+| **🤗 Hugging Face Model Hub** | Model repository with checkpoints (`.pt`) and evaluation metadata (`.json`) | [huggingface.co/Darshan13/KneeVision-models](https://huggingface.co/Darshan13/KneeVision-models) |
+| **📊 Kaggle Knee OA Dataset** | 8,260 plain knee radiographs across 5 KL grades (Train/Val/Test splits) | [kaggle.com/datasets/tommyngx/knee-osteoarthritis-dataset-with-severity](https://www.kaggle.com/datasets/tommyngx/knee-osteoarthritis-dataset-with-severity) |
+| **🏥 NIH NIMH Data Archive (NDA)** | Osteoarthritis Initiative (OAI) clinical tables (`kxr_sq_bu00.txt`, `AllClinical00.txt`) | [nda.nih.gov/oai](https://nda.nih.gov/oai) |
+| **📑 IEEE DataPort Reports** | Expert-annotated radiology reports for Knee OAI dataset (DOI: 10.21227/vcpg-qm58) | [doi.org/10.21227/vcpg-qm58](https://doi.org/10.21227/vcpg-qm58) |
+| **🔍 Roboflow Universe** | External generalization test cohort (1,965 images, CC BY 4.0) | [universe.roboflow.com/srm-zubpb/knee-oa-detection](https://universe.roboflow.com/srm-zubpb/knee-oa-detection) |
+| **🦴 Mendeley Data** | Tibial Spiking Knee OA Dataset (DOI: 10.17632/6gbptmgp3y.1) | [doi.org/10.17632/6gbptmgp3y.1](https://doi.org/10.17632/6gbptmgp3y.1) |
+| **🩺 BioClinicalBERT** | Pre-trained clinical language model on Hugging Face | [huggingface.co/emilyalsentzer/Bio_ClinicalBERT](https://huggingface.co/emilyalsentzer/Bio_ClinicalBERT) |
+| **🦙 Meta Llama 3.2 1B (Ollama)** | Local quantized LLM for guideline-grounded rehabilitation generation | [ollama.com/library/llama3.2](https://ollama.com/library/llama3.2) |
+| **🐙 GitHub Source Code** | Complete implementation, tests, evaluation scripts, and audits | [github.com/Darshan-T-P/KneeVision](https://github.com/Darshan-T-P/KneeVision) |
+
+- **Cold Start Notice:** On Streamlit Community Cloud cold starts, the app automatically fetches required model weights from the Hugging Face repository above (`ensure_checkpoints()`). Subsequent runs reuse the cached weights.
+- **Hugging Face Model Checkpoints hosted:**
   - `best_densenet121_ordinal_ordinal_soft_mixup_a04.pt` (Final locked CORAL ordinal model)
   - `best_densenet121.pt` (Standard multi-class DenseNet121 baseline)
   - `best_efficientnet-b4.pt` (EfficientNet-B4 baseline)
   - `best_convnext_small_binary.pt` (Binary screening ConvNeXt-Small)
   - `best_clinical.pt` (BioClinicalBERT clinical text encoder)
   - `best_fusion.pt` (Multimodal late fusion network)
-- 🐙 **Source Repository:**  
-  [https://github.com/Darshan-T-P/KneeVision](https://github.com/Darshan-T-P/KneeVision)
 
 ---
 
@@ -117,45 +131,159 @@ KneeVision++ synthesizes multiple public medical imaging, clinical tabular, narr
 
 ### 1. Imaging Datasets
 - **Kaggle Knee Osteoarthritis Dataset:**
-  - **Scope:** 8,260 high-resolution plain knee radiographs across 5 KL grades (KL 0 to 4).
-  - **Splits:** Train ($N = 5,778$), Validation ($N = 826$), Test ($N = 1,656$).
-  - **Validation:** Strict patient-level separation verified via filename prefix matching ($0$ shared patients across any split).
-  - **Source:** [Kaggle Knee Osteoarthritis Dataset](https://www.kaggle.com/datasets/tommyngx/knee-osteoarthritis-dataset-with-severity)
-- **External Generalization Cohort — Roboflow Knee OA:**
+  - **Direct URL:** [https://www.kaggle.com/datasets/tommyngx/knee-osteoarthritis-dataset-with-severity](https://www.kaggle.com/datasets/tommyngx/knee-osteoarthritis-dataset-with-severity)
+  - **Scope:** 8,260 high-resolution plain knee radiographs across 5 Kellgren–Lawrence grades (KL 0 to 4).
+  - **Splits:** Train ($N = 5,778$), Validation ($N = 826$), Held-out Test ($N = 1,656$).
+  - **Validation & Sanctity:** Strict patient-level separation verified via filename prefix matching ($0$ shared patients across any split). Unpacked from `data/archive.zip` to `data/raw/{train,val,test}/{kl_grade}/*.png`.
+- **External Generalization Cohort — Roboflow Knee OA Detection:**
+  - **Direct URL:** [https://universe.roboflow.com/srm-zubpb/knee-oa-detection](https://universe.roboflow.com/srm-zubpb/knee-oa-detection)
   - **Scope:** 1,965 annotated knee radiographs exported under CC BY 4.0.
-  - **Use Case:** External generalization audit executed via `scripts/evaluate_external.py`.
-  - **Source:** [Roboflow Universe Knee OA Detection](https://universe.roboflow.com/srm-zubpb/knee-oa-detection)
-- **Tibial Spiking Knee OA Dataset:**
-  - Specialized dataset focusing on tibial spine elongation and marginal osteophyte spiking.
+  - **Use Case:** Independent external generalization audit executed via [`scripts/evaluate_external.py`](file:///home/darshan/Projects/Research/KneeVision/scripts/evaluate_external.py).
+- **Tibial Spiking Knee OA Dataset (Mendeley Data):**
+  - **Direct DOI URL:** [https://doi.org/10.17632/6gbptmgp3y.1](https://doi.org/10.17632/6gbptmgp3y.1)
+  - **Mendeley Data Portal:** [https://data.mendeley.com/datasets/6gbptmgp3y/1](https://data.mendeley.com/datasets/6gbptmgp3y/1)
+  - **Citation:** Marko Moilanen, Tommi Grönholm, Juha Paloneva, Sami Äyrämö, *"Tibial Spiking Knee OA Dataset"*, Mendeley Data, V1, 2024.
+  - **Clinical Focus:** High-resolution plain radiograph crops of the tibial intercondylar eminence (tibial spine elongation), evaluated as a sensitive structural marker for early knee osteoarthritis progression.
 
 ### 2. Clinical Assessment & Radiographic Readings
-- **Osteoarthritis Initiative (OAI) via NIMH Data Archive (NDA):**
-  - **Scope:** Multicenter, prospective 9-year longitudinal cohort of 4,796 participants.
+- **Osteoarthritis Initiative (OAI) via NIH NIMH Data Archive (NDA):**
+  - **Study Portal:** [https://nda.nih.gov/oai](https://nda.nih.gov/oai)
+  - **Study Documentation:** [https://nda.nih.gov/oai/study_documentation](https://nda.nih.gov/oai/study_documentation)
+  - **Access Registration:** [https://nda.nih.gov/nda/creating-an-nda-account](https://nda.nih.gov/nda/creating-an-nda-account)
+  - **Data Access & DUC:** [https://nda.nih.gov/oai/data_access](https://nda.nih.gov/oai/data_access)
+  - **Scope:** Multicenter, prospective 9-year longitudinal cohort of 4,796 participants tracking knee OA biomarkers and outcomes.
   - **Tables Ingested:**
-    - `kxr_sq_bu00.txt`: Gold-standard central radiologist readings (KL grades, medial/lateral JSN, marginal osteophytes, sclerosis, attrition).
-    - `AllClinical00.txt`: Baseline clinical assessments (age, sex, BMI, WOMAC pain/stiffness/function, surgical history).
-  - **Cohort Dimensions:** 11,574 train / 2,540 val / 2,478 test knees with strict subject-level isolation.
-  - **Portal:** [NIMH Data Archive OAI Portal](https://nda.nih.gov/oai) (Access requires DUC approval; see `data/oai/README.md`).
+    - `kxr_sq_bu00.txt`: Gold-standard central radiologist readings (Project 15) capturing KL grades, medial/lateral joint space narrowing (JSN 0–3), marginal osteophytes (0–3), subchondral sclerosis (0–1), and bone attrition (0–3).
+    - `AllClinical00.txt`: Baseline clinical assessments (age, sex, BMI, WOMAC pain/stiffness/function, injury, surgery, and medication history).
+  - **Pipeline & Ingestion:** Processed via [`scripts/download_oai.py`](file:///home/darshan/Projects/Research/KneeVision/scripts/download_oai.py) yielding 11,574 train / 2,540 val / 2,478 test records with zero subject bleed (see [`data/oai/README.md`](file:///home/darshan/Projects/Research/KneeVision/data/oai/README.md)).
 - **IEEE DataPort Expert-Annotated Radiology Reports:**
-  - **Citation:** Akshay Daydar, *"Expert annotated radiology Reports for Knee OAI dataset"*, IEEE DataPort, DOI: [10.21227/vcpg-qm58](https://doi.org/10.21227/vcpg-qm58).
+  - **Direct DOI URL:** [https://doi.org/10.21227/vcpg-qm58](https://doi.org/10.21227/vcpg-qm58)
+  - **IEEE DataPort Portal:** [https://ieee-dataport.org/documents/expert-annotated-radiology-reports-knee-oai-dataset](https://ieee-dataport.org/documents/expert-annotated-radiology-reports-knee-oai-dataset)
+  - **Citation:** Akshay Daydar, *"Expert annotated radiology Reports for Knee OAI dataset"*, IEEE DataPort, 2021.
+  - **Use Case:** Expert radiologist-written narrative report texts paired with OAI imaging studies.
 
 ### 3. Foundation Models & Hugging Face Checkpoints
-- **Hugging Face Model Repo:** [`Darshan13/KneeVision-models`](https://huggingface.co/Darshan13/KneeVision-models)
-- **Clinical BERT:** [`emilyalsentzer/Bio_ClinicalBERT`](https://huggingface.co/emilyalsentzer/Bio_ClinicalBERT) (Pretrained on MIMIC-III clinical notes).
-- **Computer Vision Backbones:** PyTorch Torchvision ImageNet-pretrained weights for DenseNet121, EfficientNet-B4, ViT-B/16, and ConvNeXt-Small.
-- **Local RAG LLM:** Meta Llama 3.2 1B (`llama3.2:1b`) served via [Ollama](https://ollama.com).
+- **Hugging Face Model Repo:** [`Darshan13/KneeVision-models`](https://huggingface.co/Darshan13/KneeVision-models) — official model hub hosting locked PyTorch weights and evaluation artifacts.
+- **BioClinicalBERT:** [`emilyalsentzer/Bio_ClinicalBERT`](https://huggingface.co/emilyalsentzer/Bio_ClinicalBERT) — clinical domain BERT encoder pretrained on MIMIC-III clinical records (Emily Alsentzer et al., 2019).
+- **Vision Backbones:** [Torchvision ImageNet Pretrained Models](https://pytorch.org/vision/stable/models.html) — DenseNet121, EfficientNet-B4, ViT-B/16, and ConvNeXt-Small.
+- **Local RAG LLM:** Meta Llama 3.2 1B ([`llama3.2:1b`](https://ollama.com/library/llama3.2)) served locally via [Ollama](https://ollama.com).
 
 ### 4. Clinical Practice Guidelines (RAG Corpus)
-The RAG rehabilitation guidance pipeline retrieves from an original, curated synthesis of internationally recognized consensus standards located in `data/guidelines/`:
-- **OARSI (2019):** Bannuru RR, et al. *OARSI guidelines for the non-surgical management of knee, hip, and polyarticular osteoarthritis.* Osteoarthritis and Cartilage. [oarsi.org](https://oarsi.org/education/oarsi-guidelines)
-- **AAOS (2021):** American Academy of Orthopaedic Surgeons. *Management of Osteoarthritis of the Knee (Non-Arthroplasty), Evidence-Based Clinical Practice Guideline, 3rd Edition.* [aaos.org](https://www.aaos.org/quality/quality-programs/lower-extremity-programs/osteoarthritis-of-the-knee/)
-- **ACR / Arthritis Foundation (2019):** Kolasinski SL, et al. *2019 American College of Rheumatology/Arthritis Foundation Guideline for the Management of Osteoarthritis of the Hand, Hip, and Knee.* Arthritis Care & Research.
-- **CDC:** *Talking to Patients About Self-Management & Physical Activity.* [cdc.gov/arthritis](https://www.cdc.gov/arthritis/hcp/self-management/index.html)
-- **Arthritis Foundation:** *Guidelines for Osteoarthritis Treatments.* [arthritis.org](https://www.arthritis.org)
+The RAG rehabilitation guidance pipeline retrieves from an original, cited synthesis of international orthopedic consensus standards located in [`data/guidelines/`](file:///home/darshan/Projects/Research/KneeVision/data/guidelines/):
+- **OARSI (2019):** Bannuru RR, et al. *OARSI guidelines for the non-surgical management of knee, hip, and polyarticular osteoarthritis.* Osteoarthritis and Cartilage. [oarsi.org Guidelines](https://oarsi.org/education/oarsi-guidelines) \| [DOI: 10.1016/j.joca.2019.06.011](https://doi.org/10.1016/j.joca.2019.06.011)
+- **AAOS (2021):** American Academy of Orthopaedic Surgeons. *Management of Osteoarthritis of the Knee (Non-Arthroplasty), Evidence-Based Clinical Practice Guideline, 3rd Edition.* [AAOS Guideline Portal](https://www.aaos.org/quality/quality-programs/lower-extremity-programs/osteoarthritis-of-the-knee/) \| [Full Guideline PDF](https://www.aaos.org/globalassets/quality-and-practice-resources/osteoarthritis-of-the-knee/oak3cpg.pdf)
+- **ACR / Arthritis Foundation (2019):** Kolasinski SL, et al. *2019 American College of Rheumatology/Arthritis Foundation Guideline for the Management of Osteoarthritis of the Hand, Hip, and Knee.* Arthritis Care & Research. [DOI: 10.1002/art.41142](https://doi.org/10.1002/art.41142)
+- **CDC:** *Talking to Patients About Self-Management & Physical Activity for Arthritis.* [CDC Arthritis Portal](https://www.cdc.gov/arthritis/hcp/self-management/index.html)
+- **Arthritis Foundation:** *Guidelines for Osteoarthritis Treatments.* [Arthritis Foundation Treatment Guide](https://www.arthritis.org/diseases/more-about/guidelines-for-osteoarthritis-treatments)
 
 ---
 
 ## 🏛️ System Architecture
+
+### End-to-End System Flowchart
+
+The diagram below illustrates how all data modalities, foundation models, clinical practice guidelines, explainability tools, and deployment environments interact across the KneeVision++ ecosystem:
+
+```mermaid
+flowchart TB
+    %% Subgraph 1: Data Sources & Ingestion
+    subgraph S1 ["1. Data Ingestion & Evidence Sources"]
+        direction TB
+        DS_Kaggle["Kaggle Knee OA Radiographs<br/>(8,260 Images: KL 0–4)"]
+        DS_OAI["NIH / NDA OAI Cohort<br/>(kxr_sq_bu00 & AllClinical00)"]
+        DS_Reports["IEEE DataPort Narrative Reports<br/>(DOI: 10.21227/vcpg-qm58)"]
+        DS_Guidelines["Clinical Practice Guidelines<br/>(OARSI 2019, AAOS 2021, ACR/AF, CDC)"]
+        DS_Ext["External Validation Cohorts<br/>(Roboflow CC BY 4.0 & Mendeley Tibial Spiking)"]
+    end
+
+    %% Subgraph 2: Preprocessing & Alignment
+    subgraph S2 ["2. Preprocessing & Alignment Pipeline"]
+        direction TB
+        PP_Img["Image Preprocessing & Augmentation<br/>(Resize 224, RandAugment, Soft MixUp a=0.4)"]
+        PP_Txt["Clinical Text Synthesis & Tokenizer<br/>(OARSI JSN/Osteophyte/WOMAC -> BioClinicalBERT Tokens)"]
+        PP_RAG["Guideline Chunking & Indexer<br/>(Frontmatter Parsing + TF-IDF Retrieval Index)"]
+    end
+
+    %% Subgraph 3: Deep Learning & Multimodal Fusion
+    subgraph S3 ["3. Deep Learning & Multimodal Fusion Layer"]
+        direction TB
+        M_DenseNet["DenseNet121 Backbone<br/>(ImageNet Pre-trained)"]
+        M_Embed_Img["1024-dim Visual Feature Vector"]
+        M_CORAL["CORAL Ordinal Head<br/>(4 Consistent Rank Threshold Logits)"]
+        
+        M_BERT["BioClinicalBERT Encoder<br/>(emilyalsentzer/Bio_ClinicalBERT)"]
+        M_Embed_Txt["768-dim Clinical Text Embedding"]
+        
+        M_Fusion["Multimodal Late Fusion Network<br/>(Concatenation: 1792d -> 512d Dense Projection)"]
+        M_Pred["Severity Grade Prediction<br/>(KL 0: Normal to KL 4: Severe)"]
+    end
+
+    %% Subgraph 4: Explainability
+    subgraph S4 ["4. Explainable AI (XAI) Engine"]
+        direction TB
+        XAI_CAM["Grad-CAM & Score-CAM<br/>(Targeted Conv Feature Maps)"]
+        XAI_LIME["LIME Explainer<br/>(Superpixel Perturbation)"]
+        XAI_Blend["Alpha-Balanced Heatmap Overlay<br/>(Anatomical Joint Space Alignment)"]
+    end
+
+    %% Subgraph 5: RAG Rehabilitation Engine
+    subgraph S5 ["5. Guideline RAG & Clinical Decision Support"]
+        direction TB
+        RAG_Retriever["Relevance-Weighted Guideline Retriever<br/>(TF-IDF + KL-Grade Prior Boost)"]
+        RAG_LLM["Local Quantized LLM<br/>(Meta Llama 3.2 1B via Ollama)"]
+        RAG_Fallback["Safety Excerpt Fallback<br/>(Direct Guideline Pass-through)"]
+        RAG_Output["Stratified Non-Surgical Rehab Plan<br/>(Exercise, Weight Loss, NSAIDs, Biomechanics)"]
+    end
+
+    %% Subgraph 6: Deployment & Interfaces
+    subgraph S6 ["6. Production & Serving Infrastructure"]
+        direction TB
+        HF_Hub["Hugging Face Model Repository<br/>(Darshan13/KneeVision-models)"]
+        App_Streamlit["Live Streamlit Cloud Web Application<br/>(Auto Weight Fetching + Interactive GUI)"]
+        API_FastAPI["FastAPI REST Backend<br/>(Endpoints: /predict, /explain, /rehab)"]
+        UI_React["React 18 + Vite SPA Frontend<br/>(Client Dashboard & Diagnostic Views)"]
+    end
+
+    %% Inter-layer connections
+    DS_Kaggle --> PP_Img
+    DS_Ext -.-> PP_Img
+    DS_OAI --> PP_Txt
+    DS_Reports --> PP_Txt
+    DS_Guidelines --> PP_RAG
+
+    PP_Img --> M_DenseNet
+    M_DenseNet --> M_Embed_Img
+    M_Embed_Img --> M_CORAL
+    M_CORAL --> M_Pred
+
+    M_DenseNet --> XAI_CAM
+    M_DenseNet --> XAI_LIME
+    XAI_CAM --> XAI_Blend
+    XAI_LIME --> XAI_Blend
+
+    PP_Txt --> M_BERT
+    M_BERT --> M_Embed_Txt
+
+    M_Embed_Img --> M_Fusion
+    M_Embed_Txt --> M_Fusion
+    M_Fusion --> M_Pred
+
+    M_Pred --> RAG_Retriever
+    PP_RAG --> RAG_Retriever
+    RAG_Retriever --> RAG_LLM
+    RAG_Retriever -.->|Ollama Offline| RAG_Fallback
+    RAG_LLM --> RAG_Output
+    RAG_Fallback --> RAG_Output
+
+    HF_Hub ==>|Fetch Checkpoints| App_Streamlit
+    HF_Hub ==>|Fetch Checkpoints| API_FastAPI
+    API_FastAPI <==> UI_React
+    M_Pred --> App_Streamlit
+    XAI_Blend --> App_Streamlit
+    RAG_Output --> App_Streamlit
+```
+
+### Repository Layout
 
 ```
 KneeVision/
