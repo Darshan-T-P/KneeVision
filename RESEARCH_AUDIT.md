@@ -355,6 +355,24 @@ comparison is not yet apples-to-apples:
 across both arms.** Until then, no performance claim about CORAL relative to Focal
 is supportable in either direction.
 
+> **Status update (2026-10-11, from MLflow `kneevision` experiment; single split, validation kappa).**
+> The `argmax` defect is fixed (`OrdinalLoss(soft_targets=True)`), so the CORAL arm now receives soft MixUp
+> targets. Completed runs (best val kappa):
+>
+> | Run | Loss | MixUp | Class weights / smoothing | Epochs | Kappa |
+> |---|---|---|---|---|---|
+> | ordinal_soft_mixup_a04 (seed 42) | CORAL, soft targets | 0.4 | none | 80 | 0.8009 |
+> | ordinal_soft_mixup_a04 (seed 123) | CORAL, soft targets | 0.4 | none | 94 | 0.7945 |
+> | ordinal_soft_nomixup | CORAL, soft targets | 0 | none | 52 | 0.7722 |
+> | standard_focal_nomixup | Focal | 0 | none / none | 86 | 0.7831 |
+> | standard_focal_mixup | Focal | 0.4 | yes / 0.1 | 60 | 0.7753 |
+>
+> Without MixUp the Focal arm is slightly ahead (0.7831 vs 0.7722); the CORAL advantage appears only with
+> MixUp, and the one MixUp Focal run also uses class weights and label smoothing, so that comparison is still
+> not matched. The seed spread for the CORAL winner (0.006) is of the same order as most gaps in the table, and
+> the Focal arms have a single seed. **Still required:** a MixUp-on Focal run without class weights/smoothing
+> (and the reverse), with at least 3 seeds per arm, before any CORAL-vs-Focal claim.
+
 **2. CORAL vs Focal at full training length.**
 A controlled 6-epoch run (identical dataset, split, backbone, augmentation,
 optimizer, LR schedule, batch size and seed; only the loss/head differing) showed

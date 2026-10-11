@@ -157,6 +157,13 @@ ablation is also required: `OrdinalLoss` reduces MixUp soft targets via `argmax`
 `FocalLoss` consumes them natively, and only the Focal arm receives class weights. See
 "Open Questions" in `RESEARCH_AUDIT.md`.
 
+> **Status update (2026-10-11, from MLflow `kneevision` experiment).** The interrupted-run problem is
+> resolved: CORAL image training has since been run to completion (80–96 epochs). Best validation kappa:
+> 0.8009 (`ordinal_soft_mixup_a04`, seed 42), 0.7945 (same config, seed 123), 0.7971 (MixUp alpha 0.2).
+> `OrdinalLoss` now supports `soft_targets=True`, so MixUp soft labels are no longer reduced by `argmax`.
+> **Still open:** the MixUp × class-weight fairness ablation is only partly done — see the status note under
+> "Open Questions" in `RESEARCH_AUDIT.md`. The 0.1 kappa value cited above is stale; do not quote it.
+
 ### L2 — Definitional Co-occurrence Is a Design Constraint, Not a Bug
 The high text-model kappa (0.953) from OARSI fields cannot be "fixed" — it reflects the structure of the KL grading system. The correct response is accurate disclosure in the paper, which is now documented in `LEAKAGE_ANALYSIS.md`.
 
