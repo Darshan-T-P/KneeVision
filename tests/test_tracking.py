@@ -137,14 +137,13 @@ def test_log_artifact(tmp_path):
     tracker.end_run()
 
 
-# ── known defect: _fix_artifact_root vs MLflow 3.14 ────────────────────────────
+# ── _fix_artifact_root ─────────────────────────────────────────────────────────
 
 class _StaleExperiment:
-    """Minimal stand-in for an MLflow `Experiment` with a stale artifact root.
+    """Stand-in for an `Experiment` whose artifact root belongs to another machine.
 
-    `mlflow.entities.Experiment.artifact_location` is a read-only property, so the
-    mismatch this test needs cannot be produced by mutating a real experiment. Only
-    the three attributes `_fix_artifact_root` reads are required.
+    `mlflow.entities.Experiment.artifact_location` is read-only, so the mismatch cannot
+    be produced by mutating a real experiment.
     """
 
     def __init__(self, experiment_id, artifact_location, name):
@@ -153,50 +152,16 @@ class _StaleExperiment:
         self.name = name
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "MLflow 3.14 removed MlflowClient.update_experiment, which "
-        "MLflowTracker._fix_artifact_root still calls (tracking.py:40), so any "
-        "experiment with an artifact root from another machine/path raises "
-        "AttributeError. strict=True makes the suite FAIL once this is fixed — "
-        "delete this test then."
-    ),
-)
-def test_fix_artifact_root_survives_stale_artifact_location():
-    """Reproduce the defect left dormant by the pre-existing mlflow.db.
-
-    The stale-root branch is only entered when `artifact_location` differs from
-    `PROJECT_ROOT/mlruns/<id>`, which is why a pre-populated database whose
-    locations already matched never triggered it.
-    """
-    from kneevision.utils import tracking as tracking_module
+def test_stale_artifact_root_warns_instead_of_raising(caplog):
+    """Regression: MLflow 3 removed MlflowClient.update_experiment, which this used to
+    call, so a DB from another machine made `MLflowTracker()` raise AttributeError."""
+    import logging
 
     tracker = MLflowTracker(experiment_name="test_stale_artifact_root")
-    stale = _StaleExperiment(
-        experiment_id=999,
-        artifact_location="/home/someone/else/mlruns/999",
-        name="test_stale_artifact_root",
-    )
-
-    # Drive the real implementation, bypassing the no-op installed in conftest.py.
-    tracking_module.ORIGINAL_FIX_ARTIFACT_ROOT(tracker, stale)
-
-
-def test_tracker_never_calls_removed_mlflow_api():
-    """Documents which removed API the defect above depends on.
-
-    Asserting the *absence* is the point: if a future MLflow release restores
-    `MlflowClient.update_experiment`, this flips and the strict xfail above XPASSes,
-    which pytest reports as a failure — so neither signal can be missed.
-    """
-    from mlflow.tracking import MlflowClient
-
-    assert not hasattr(MlflowClient, "update_experiment"), (
-        "MlflowClient.update_experiment exists again — remove the strict xfail on "
-        "test_fix_artifact_root_survives_stale_artifact_location and validate the "
-        "real fix."
-    )
+    stale = _StaleExperiment(999, "/home/someone/else/mlruns/999", "test_stale_artifact_root")
+    with caplog.at_level(logging.WARNING, logger="tracking"):
+        tracker._fix_artifact_root(stale)
+    assert any("/home/someone/else/mlruns/999" in r.getMessage() for r in caplog.records)
 
 
 # ── run_id property ────────────────────────────────────────────────────────────

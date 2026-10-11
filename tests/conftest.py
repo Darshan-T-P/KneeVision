@@ -20,21 +20,3 @@ import kneevision.utils.tracking as _tracking
 _TEST_TMP = Path(tempfile.mkdtemp(prefix="kneevision_test_"))
 _tracking.MLFLOW_TRACKING_URI = f"sqlite:///{_TEST_TMP}/mlflow_test.db"
 _tracking.PROJECT_ROOT = _TEST_TMP
-
-# Neutralise `_fix_artifact_root` for tests. It calls
-# `MlflowClient().update_experiment(...)`, which does not exist in MLflow 3.14
-# (see `hasattr(MlflowClient, "update_experiment") == False`). That call is only
-# reached when an experiment's `artifact_location` differs from
-# `PROJECT_ROOT/mlruns/<id>` — never against the previously polluted production
-# DB, where the paths already matched, which is why it went unnoticed. Against a
-# fresh test DB it is always reached and raises AttributeError.
-#
-# This is a LATENT APPLICATION BUG, reported rather than fixed here: on a clean
-# checkout with no `mlflow.db`, `MLflowTracker()` raises AttributeError on
-# construction. See `tests/test_tracking.py::test_fix_artifact_root_survives_stale_
-# artifact_location`, which pins the defect with a strict xfail so the suite turns
-# red the moment anyone fixes it.
-#
-# The unpatched implementation is kept reachable so that test can still drive it.
-_tracking.ORIGINAL_FIX_ARTIFACT_ROOT = _tracking.MLflowTracker._fix_artifact_root
-_tracking.MLflowTracker._fix_artifact_root = lambda self, experiment: None

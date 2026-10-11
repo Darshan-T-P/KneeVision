@@ -40,20 +40,21 @@ class MLflowTracker:
         self.active_run = None
 
     def _fix_artifact_root(self, experiment) -> None:
-        """Point the experiment's artifact store at this machine's mlruns dir.
+        """Warn if the experiment's artifact store is not this machine's mlruns dir.
 
-        Handles DBs created on another machine/path (stale artifact locations).
+        This happens for DBs created on another machine/path. MLflow >= 3 offers no
+        API to repoint an existing experiment's artifact location (the former
+        `MlflowClient.update_experiment` is gone), so we only warn: tracking of
+        params/metrics still works; artifact logging would target the stale path.
         """
-        current_root = Path(PROJECT_ROOT) / "mlruns"
-        current_location = str(current_root / str(experiment.experiment_id))
-        if experiment.artifact_location != current_location:
-            from mlflow.tracking import MlflowClient
-
-            MlflowClient().update_experiment(
-                experiment.experiment_id, new_name=None, artifact_location=current_location
+        expected = str(Path(PROJECT_ROOT) / "mlruns" / str(experiment.experiment_id))
+        if experiment.artifact_location != expected:
+            logger.warning(
+                "Experiment %s stores artifacts at %s (expected %s). Params/metrics are "
+                "unaffected; recreate the experiment or set MLFLOW_EXPERIMENT_NAME to a "
+                "new name if artifact logging fails.",
+                experiment.name, experiment.artifact_location, expected,
             )
-            logger.info("Fixed artifact root for experiment %s -> %s",
-                        experiment.name, current_location)
 
     def start_run(self, run_name: str | None = None, tags: dict | None = None):
         self.active_run = mlflow.start_run(run_name=run_name)
