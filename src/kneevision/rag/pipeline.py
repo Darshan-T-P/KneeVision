@@ -44,7 +44,7 @@ class RehabRecommender:
             raise ValueError(f"kl_grade must be 0-4, got {kl_grade}")
 
         query = f"knee osteoarthritis KL grade {kl_grade} ({KL_LABELS[kl_grade]}) rehabilitation. {patient_context}".strip()
-        chunks = self.retriever.retrieve(query, kl_grade=kl_grade, top_k=top_k)
+        chunks = self.retriever.retrieve(query, kl_grade=kl_grade, top_k=top_k, context=patient_context)
 
         try:
             synthesis = self.llm.generate(self._build_prompt(kl_grade, patient_context, chunks))

@@ -1,0 +1,243 @@
+{
+ "note": "Relevance labels written by the project author from the guideline text (not clinician-adjudicated). 'relevant' = file::heading chunks that a reasonable answer to the query should draw on; the KL-grade document's main section is always included.",
+ "queries": [
+  {
+   "kl": 0,
+   "context": "",
+   "topic": "grade_only",
+   "relevant": [
+    "kl0_kl1_normal_doubtful.md::Recommendations"
+   ]
+  },
+  {
+   "kl": 1,
+   "context": "",
+   "topic": "grade_only",
+   "relevant": [
+    "kl0_kl1_normal_doubtful.md::Recommendations"
+   ]
+  },
+  {
+   "kl": 2,
+   "context": "",
+   "topic": "grade_only",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "",
+   "topic": "grade_only",
+   "relevant": [
+    "kl3_moderate.md::Recommendations"
+   ]
+  },
+  {
+   "kl": 4,
+   "context": "",
+   "topic": "grade_only",
+   "relevant": [
+    "kl4_severe.md::Recommendations"
+   ]
+  },
+  {
+   "kl": 0,
+   "context": "45yo runner, occasional stiffness after long runs, wants to stay active",
+   "topic": "exercise",
+   "relevant": [
+    "kl0_kl1_normal_doubtful.md::Recommendations",
+    "general_exercise_and_lifestyle.md::Exercise"
+   ]
+  },
+  {
+   "kl": 1,
+   "context": "BMI 33, mild morning stiffness",
+   "topic": "weight",
+   "relevant": [
+    "kl0_kl1_normal_doubtful.md::Recommendations",
+    "general_exercise_and_lifestyle.md::Weight management",
+    "aaos_oak3_recommendations.md::Weight Loss Intervention"
+   ]
+  },
+  {
+   "kl": 1,
+   "context": "sleeps poorly, high work stress, knee aches at night",
+   "topic": "sleep",
+   "relevant": [
+    "kl0_kl1_normal_doubtful.md::Recommendations",
+    "general_exercise_and_lifestyle.md::Sleep and stress"
+   ]
+  },
+  {
+   "kl": 2,
+   "context": "62yo, BMI 31, pain climbing stairs, wants to lose weight",
+   "topic": "weight",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)",
+    "general_exercise_and_lifestyle.md::Weight management",
+    "aaos_oak3_recommendations.md::Weight Loss Intervention"
+   ]
+  },
+  {
+   "kl": 2,
+   "context": "asks about tai chi, yoga or swimming instead of the gym",
+   "topic": "exercise",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)",
+    "general_exercise_and_lifestyle.md::Exercise",
+    "aaos_oak3_recommendations.md::Supervised Exercise"
+   ]
+  },
+  {
+   "kl": 2,
+   "context": "prefers a gel or cream rather than tablets for knee pain",
+   "topic": "topical",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)",
+    "aaos_oak3_recommendations.md::Topical Treatments"
+   ]
+  },
+  {
+   "kl": 2,
+   "context": "wants glucosamine, chondroitin or turmeric supplements",
+   "topic": "supplements",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)",
+    "aaos_oak3_recommendations.md::Oral/Dietary Supplements"
+   ]
+  },
+  {
+   "kl": 2,
+   "context": "wants a self-management education programme and pacing advice",
+   "topic": "education",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)",
+    "general_exercise_and_lifestyle.md::Self-management and education",
+    "aaos_oak3_recommendations.md::Self-Management",
+    "aaos_oak3_recommendations.md::Patient Education"
+   ]
+  },
+  {
+   "kl": 2,
+   "context": "asks whether surgery is needed now",
+   "topic": "surgery_not_yet",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)",
+    "kl2_mild.md::Not yet indicated at this stage"
+   ]
+  },
+  {
+   "kl": 2,
+   "context": "takes tramadol or opioids for knee pain",
+   "topic": "opioids",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)",
+    "aaos_oak3_recommendations.md::Oral Narcotics"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "70yo, knee giving way, uses stairs daily, considering a brace or cane",
+   "topic": "assistive",
+   "relevant": [
+    "kl3_moderate.md::Recommendations",
+    "aaos_oak3_recommendations.md::Braces",
+    "aaos_oak3_recommendations.md::Canes"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "asks about hyaluronic acid or steroid injections",
+   "topic": "injections",
+   "relevant": [
+    "kl3_moderate.md::Recommendations",
+    "aaos_oak3_recommendations.md::Hyaluronic Acid",
+    "aaos_oak3_recommendations.md::Intra-articular Corticosteroids"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "has a torn meniscus and has failed physical therapy",
+   "topic": "meniscus",
+   "relevant": [
+    "kl3_moderate.md::Recommendations",
+    "aaos_oak3_recommendations.md::Partial Meniscectomy"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "wants arthroscopic lavage or debridement",
+   "topic": "arthroscopy",
+   "relevant": [
+    "kl3_moderate.md::Recommendations",
+    "aaos_oak3_recommendations.md::Lavage/Debridement"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "takes paracetamol or acetaminophen, asks about oral NSAIDs",
+   "topic": "oral_meds",
+   "relevant": [
+    "kl3_moderate.md::Recommendations",
+    "aaos_oak3_recommendations.md::Oral Acetaminophen",
+    "aaos_oak3_recommendations.md::Oral NSAIDs"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "obese, BMI 36, weight loss programme",
+   "topic": "weight",
+   "relevant": [
+    "kl3_moderate.md::Recommendations",
+    "general_exercise_and_lifestyle.md::Weight management",
+    "aaos_oak3_recommendations.md::Weight Loss Intervention"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "asks about lateral wedge insoles for the shoes",
+   "topic": "insoles",
+   "relevant": [
+    "kl3_moderate.md::Recommendations",
+    "aaos_oak3_recommendations.md::Lateral Wedge Insoles"
+   ]
+  },
+  {
+   "kl": 4,
+   "context": "75yo, severe pain at rest, cannot walk far, asks about knee replacement",
+   "topic": "surgery",
+   "relevant": [
+    "kl4_severe.md::Recommendations"
+   ]
+  },
+  {
+   "kl": 4,
+   "context": "wants platelet-rich plasma instead of surgery",
+   "topic": "prp",
+   "relevant": [
+    "kl4_severe.md::Recommendations",
+    "aaos_oak3_recommendations.md::Platelet-rich Plasma"
+   ]
+  },
+  {
+   "kl": 4,
+   "context": "unicompartmental medial OA, relatively young and active, considering osteotomy",
+   "topic": "osteotomy",
+   "relevant": [
+    "kl4_severe.md::Recommendations",
+    "aaos_oak3_recommendations.md::Tibial Osteotomy"
+   ]
+  },
+  {
+   "kl": 4,
+   "context": "preparing for arthroplasty, BMI 34, wants prehab strengthening",
+   "topic": "prehab",
+   "relevant": [
+    "kl4_severe.md::Recommendations",
+    "general_exercise_and_lifestyle.md::Exercise",
+    "general_exercise_and_lifestyle.md::Weight management"
+   ]
+  }
+ ]
+}
