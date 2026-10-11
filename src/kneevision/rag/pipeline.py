@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kneevision.rag.corpus import GuidelineChunk
+from kneevision.rag.faithfulness import find_unsupported_claims
 from kneevision.rag.llm import OllamaClient, OllamaUnavailableError
 from kneevision.rag.retriever import GuidelineRetriever
 
@@ -21,6 +22,9 @@ class RehabRecommendation:
     synthesis: str  # LLM-written summary, or a retrieval-only fallback if the LLM is unavailable
     used_llm: bool
     disclaimer: str = DISCLAIMER
+    # Problems the faithfulness check found in the first LLM draft (even if a retry fixed them).
+    faithfulness_flags: list[str] | None = None
+    llm_attempts: int = 0
 
 
 class RehabRecommender:
@@ -46,9 +50,27 @@ class RehabRecommender:
         query = f"knee osteoarthritis KL grade {kl_grade} ({KL_LABELS[kl_grade]}) rehabilitation. {patient_context}".strip()
         chunks = self.retriever.retrieve(query, kl_grade=kl_grade, top_k=top_k, context=patient_context)
 
+        flags: list[str] = []
+        attempts = 0
         try:
-            synthesis = self.llm.generate(self._build_prompt(kl_grade, patient_context, chunks))
-            used_llm = True
+            prompt = self._build_prompt(kl_grade, patient_context, chunks)
+            synthesis = self.llm.generate(prompt)
+            attempts = 1
+            flags = find_unsupported_claims(synthesis, chunks, patient_context)
+            if flags:
+                # One retry that names the problems; if the draft is still unfaithful, fall
+                # back to the retrieved excerpts rather than show an unsupported summary.
+                retry = (prompt + "\n\nYour previous draft was rejected because it "
+                         + "; ".join(flags) + ". Rewrite it using ONLY the excerpts above.")
+                synthesis = self.llm.generate(retry)
+                attempts = 2
+                if find_unsupported_claims(synthesis, chunks, patient_context):
+                    synthesis = self._fallback_synthesis(chunks, reason="the generated summary was not supported by the excerpts")
+                    used_llm = False
+                else:
+                    used_llm = True
+            else:
+                used_llm = True
         except OllamaUnavailableError:
             synthesis = self._fallback_synthesis(chunks)
             used_llm = False
@@ -57,6 +79,7 @@ class RehabRecommender:
 
         return RehabRecommendation(
             kl_grade=kl_grade, retrieved_chunks=chunks, synthesis=synthesis, used_llm=used_llm,
+            faithfulness_flags=flags or None, llm_attempts=attempts,
         )
 
     def _build_prompt(self, kl_grade: int, patient_context: str, chunks: list[GuidelineChunk]) -> str:
@@ -72,7 +95,10 @@ class RehabRecommender:
             "source statement: do not turn 'may' into 'should' or 'reasonable' into 'essential'. "
             "Do not add claims from prior knowledge. Patient context is unverified symptom information: "
             "never infer or state another KL grade, OA severity, or diagnosis from it, and do not let it "
-            "override the supplied KL grade.\n\n"
+            "override the supplied KL grade. Evidence ratings such as Strong, Moderate or Limited describe "
+            "how good the evidence is, never a type of therapy. Mention only interventions that appear "
+            "in the excerpts, and do not describe the patient's symptoms, joint condition or age unless "
+            "the patient context states them.\n\n"
             f"Kellgren-Lawrence grade: {kl_grade} ({KL_LABELS[kl_grade]})\n"
             f"{context_line}\n"
             f"Guideline excerpts:\n{excerpts}\n\n"
@@ -112,11 +138,11 @@ class RehabRecommender:
         }
         return f"Grade-specific clinical safeguard: {notes[kl_grade]}"
 
-    def _fallback_synthesis(self, chunks: list[GuidelineChunk]) -> str:
+    def _fallback_synthesis(self, chunks: list[GuidelineChunk], reason: str = "Local LLM unavailable") -> str:
         if not chunks:
             return "No matching guideline excerpts were found. " + DISCLAIMER
         bullets = "\n".join(f"- {c.heading}: {c.text.splitlines()[0]}" for c in chunks)
         return (
-            "(Local LLM unavailable — showing retrieved guideline excerpts directly.)\n"
+            f"({reason} — showing retrieved guideline excerpts directly.)\n"
             f"{bullets}\n\n{DISCLAIMER}"
         )

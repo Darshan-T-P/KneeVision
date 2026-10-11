@@ -1,0 +1,136 @@
+{
+ "note": "HELD-OUT set: written after the retriever was tuned, not used for any tuning. Labels by the project author, not clinician-adjudicated.",
+ "queries": [
+  {
+   "kl": 2,
+   "context": "retired teacher, heavy build, doctor says she should shed some kilos",
+   "topic": "weight",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)",
+    "general_exercise_and_lifestyle.md::Weight management",
+    "aaos_oak3_recommendations.md::Weight Loss Intervention"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "keeps taking ibuprofen daily, worried about stomach",
+   "topic": "oral_meds",
+   "relevant": [
+    "kl3_moderate.md::Recommendations",
+    "aaos_oak3_recommendations.md::Oral NSAIDs"
+   ]
+  },
+  {
+   "kl": 1,
+   "context": "office worker, trouble sleeping because the knee aches",
+   "topic": "sleep",
+   "relevant": [
+    "kl0_kl1_normal_doubtful.md::Recommendations",
+    "general_exercise_and_lifestyle.md::Sleep and stress"
+   ]
+  },
+  {
+   "kl": 2,
+   "context": "enjoys hydrotherapy sessions at the local pool",
+   "topic": "exercise",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)",
+    "aaos_oak3_recommendations.md::Supervised Exercise",
+    "general_exercise_and_lifestyle.md::Exercise"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "considering hyaluronic acid shots, are they worthwhile",
+   "topic": "injections",
+   "relevant": [
+    "kl3_moderate.md::Recommendations",
+    "aaos_oak3_recommendations.md::Hyaluronic Acid"
+   ]
+  },
+  {
+   "kl": 4,
+   "context": "wants to try platelet rich plasma before any operation",
+   "topic": "prp",
+   "relevant": [
+    "kl4_severe.md::Recommendations",
+    "aaos_oak3_recommendations.md::Platelet-rich Plasma"
+   ]
+  },
+  {
+   "kl": 2,
+   "context": "would like to attend a programme to learn to manage arthritis day to day",
+   "topic": "education",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)",
+    "general_exercise_and_lifestyle.md::Self-management and education",
+    "aaos_oak3_recommendations.md::Self-Management"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "uses a walking stick and a knee support sleeve",
+   "topic": "assistive",
+   "relevant": [
+    "kl3_moderate.md::Recommendations",
+    "aaos_oak3_recommendations.md::Canes",
+    "aaos_oak3_recommendations.md::Braces"
+   ]
+  },
+  {
+   "kl": 4,
+   "context": "previous meniscus tear, now asks about keyhole surgery to clean the joint",
+   "topic": "arthroscopy",
+   "relevant": [
+    "kl4_severe.md::Recommendations",
+    "aaos_oak3_recommendations.md::Lavage/Debridement",
+    "aaos_oak3_recommendations.md::Partial Meniscectomy"
+   ]
+  },
+  {
+   "kl": 2,
+   "context": "has been prescribed tramadol by another clinic",
+   "topic": "opioids",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)",
+    "aaos_oak3_recommendations.md::Oral Narcotics"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "feels sad and stressed about losing mobility",
+   "topic": "stress",
+   "relevant": [
+    "kl3_moderate.md::Recommendations",
+    "general_exercise_and_lifestyle.md::Sleep and stress"
+   ]
+  },
+  {
+   "kl": 4,
+   "context": "overweight before planned joint replacement, asks about preparation",
+   "topic": "prehab",
+   "relevant": [
+    "kl4_severe.md::Recommendations",
+    "general_exercise_and_lifestyle.md::Weight management"
+   ]
+  },
+  {
+   "kl": 2,
+   "context": "rubs diclofenac on the knee, does it work",
+   "topic": "topical",
+   "relevant": [
+    "kl2_mild.md::Recommendations (core treatments)",
+    "aaos_oak3_recommendations.md::Topical Treatments"
+   ]
+  },
+  {
+   "kl": 3,
+   "context": "asks about shoe insoles to tilt the foot outward",
+   "topic": "insoles",
+   "relevant": [
+    "kl3_moderate.md::Recommendations",
+    "aaos_oak3_recommendations.md::Lateral Wedge Insoles"
+   ]
+  }
+ ]
+}

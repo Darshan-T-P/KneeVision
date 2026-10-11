@@ -86,13 +86,13 @@ def sweep(chunks, queries, k):
     import itertools
     ret = GuidelineRetriever(chunks)
     rows = []
-    for cw, gb, ab in itertools.product([0, 1, 2, 4, 8], [0.5, 1.0, 1.5, 2.0], [0.0, 0.25, 0.5, 1.0]):
+    for cw, gb, ab, mr in itertools.product([2, 4, 8], [1.0, 2.0], [0.5, 1.0], [0.0, 0.02, 0.05, 0.08, 0.12, 0.2, 0.3]):
         if ab > gb:
             continue
         res = []
         for item in queries:
             got = ret.retrieve(build_query(item["kl"], item["context"]), kl_grade=item["kl"], top_k=k,
-                               context=item["context"], context_weight=cw, grade_boost=gb, all_boost=ab)
+                               context=item["context"], context_weight=cw, grade_boost=gb, all_boost=ab, min_relevance=mr)
             ids = [f"{c.source_path}::{c.heading}" for c in got]
             topic_rel = set(item["relevant"]) - {f"{GRADE_DOCS[item['kl']]}::{MAIN_HEADING[item['kl']]}"}
             first = next((i for i, x in enumerate(ids, 1) if x in topic_rel), None)
@@ -101,12 +101,12 @@ def sweep(chunks, queries, k):
                         "t_hit": (first is not None) if topic_rel else None,
                         "t_rec": len(topic_rel & set(ids)) / len(topic_rel) if topic_rel else None,
                         "t_mrr": (1 / first if first else 0.0) if topic_rel else None})
-        rows.append((cw, gb, ab, mean(res, "main"), mean(res, "t_hit"), mean(res, "t_rec"), mean(res, "t_mrr")))
-    rows.sort(key=lambda r: (r[3] == 1.0, r[5] + r[6]), reverse=True)
+        rows.append((cw, gb, ab, mr, mean(res, "main"), mean(res, "t_hit"), mean(res, "t_rec"), mean(res, "t_mrr")))
+    rows.sort(key=lambda r: (r[4] == 1.0, r[6] + r[7]), reverse=True)
     print(f"top-{k}; sorted by (grade main section always present, topic recall+MRR)")
-    print("ctx_w grade_b all_b | main  t_hit t_rec t_mrr")
-    for r in rows[:15]:
-        print(f"{r[0]:>5} {r[1]:>7} {r[2]:>5} | {r[3]:.2f}  {r[4]:.2f}  {r[5]:.2f}  {r[6]:.2f}")
+    print("ctx_w grade_b all_b min_rel | main  t_hit t_rec t_mrr")
+    for r in rows[:25]:
+        print(f"{r[0]:>5} {r[1]:>7} {r[2]:>5} {r[3]:>7} | {r[4]:.2f}  {r[5]:.2f}  {r[6]:.2f}  {r[7]:.2f}")
 
 
 def main():

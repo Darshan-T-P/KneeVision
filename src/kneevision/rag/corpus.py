@@ -12,6 +12,9 @@ class GuidelineChunk:
     kl_grade: str  # e.g. "0-1", "2", "3", "4", or "all"
     topic: str
     heading: str
+    # Reference-catalogue chunks (e.g. the AAOS recommendation list) that answer specific
+    # questions; returned only when the patient context matches them, never as filler.
+    on_demand: bool = False
 
 
 def _parse_frontmatter(content: str) -> tuple[dict[str, str], str]:
@@ -62,10 +65,12 @@ def load_guideline_chunks(guidelines_dir: Path) -> list[GuidelineChunk]:
             continue
         kl_grade = meta.get("kl_grade", "all")
         topic = meta.get("topic", path.stem)
+        on_demand = meta.get("retrieval") == "on-demand"
         for heading, text in _split_sections(body):
             if not text:
                 continue
             chunks.append(GuidelineChunk(
                 text=text, source_path=path.name, kl_grade=kl_grade, topic=topic, heading=heading,
+                on_demand=on_demand,
             ))
     return chunks

@@ -27,8 +27,8 @@ DESC_RE = re.compile(r"^(Description:|Evidence |Evidence from)")
 
 def parse_recommendations(text: str) -> list[dict]:
     lines = text.splitlines()
-    start = next(i for i, l in enumerate(lines) if START_RE.match(l) and i > 100)
-    end = next(i for i, l in enumerate(lines) if i > start and END_RE.match(l))
+    start = next(i for i, ln in enumerate(lines) if START_RE.match(ln) and i > 100)
+    end = next(i for i, ln in enumerate(lines) if i > start and END_RE.match(ln))
 
     recs, block = [], []
     for line in lines[start + 1:end]:
@@ -67,9 +67,17 @@ def parse_recommendations(text: str) -> list[dict]:
     return recs
 
 
+RATING_TEXT = {
+    "Strong": "Strong (high-quality evidence)",
+    "Moderate": "Moderate (moderate-quality evidence)",
+    "Limited": "Limited (weak evidence; this is a rating of the evidence, not a type of therapy)",
+    "Consensus": "Consensus (expert opinion only; no reliable evidence)",
+}
+
+
 def render(recs: list[dict]) -> str:
     out = [
-        "---", "kl_grade: all", "topic: AAOS 2021 non-arthroplasty knee OA recommendations", "---", "",
+        "---", "kl_grade: all", "retrieval: on-demand", "topic: AAOS 2021 non-arthroplasty knee OA recommendations", "---", "",
         "# AAOS Knee OA CPG (3rd ed., 2021) — Summary of Recommendations", "",
         "Recommendation statements excerpted from AAOS, *Management of Osteoarthritis of the Knee "
         "(Non-Arthroplasty), Evidence-Based Clinical Practice Guideline, 3rd Edition* (2021). "
@@ -85,7 +93,7 @@ def render(recs: list[dict]) -> str:
                 body.append(ln)
         text = " ".join(body).replace("\n- ", "\n- ").replace(" \n", "\n")
         text = re.sub(r"performance- based", "performance-based", text)
-        out += [f"## {r['topic']}", "", f"{text}", "", f"AAOS strength of recommendation: {r['strength']}.", ""]
+        out += [f"## {r['topic']}", "", f"{text}", "", f"AAOS evidence rating: {RATING_TEXT[r['strength']]}.", ""]
     return "\n".join(out)
 
 
