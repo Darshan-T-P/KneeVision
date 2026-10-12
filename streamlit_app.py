@@ -570,31 +570,45 @@ section[data-testid="stSidebar"] {
     background-color: #ffffff !important;
     border-right: 1px solid #e2eaf0 !important;
 }
+.kvp-nav-section-title {
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+    margin: 0.6rem 0.2rem 0.4rem 0.2rem;
+}
 section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label {
-    background: transparent;
-    border: 1px solid transparent;
-    padding: 0.55rem 0.85rem;
-    border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 0.48rem 0.75rem;
+    border-radius: 9px;
     margin-bottom: 0.3rem;
-    transition: all 0.2s ease;
+    transition: all 0.18s ease;
     cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:hover {
-    background: #f2f8fa;
-    border-color: #dce7ee;
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    transform: translateX(2px);
 }
 section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:has(input:checked) {
-    background: #eaf6f8 !important;
-    border: 1px solid #9cced6 !important;
+    background: #f0fdfa !important;
+    border: 1.5px solid #0d9488 !important;
+    box-shadow: 0 2px 6px rgba(13, 148, 136, 0.12) !important;
 }
 section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:has(input:checked) p {
-    color: #087e8b !important;
+    color: #0f766e !important;
     font-weight: 700 !important;
 }
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label > div:first-child {
+    display: none;
+}
 .kvp-sidebar-header {
-    padding: 0.2rem 0.1rem 1rem 0.1rem;
+    padding: 0.2rem 0.1rem 0.9rem 0.1rem;
     border-bottom: 1px solid #e2eaf0;
-    margin-bottom: 0.9rem;
+    margin-bottom: 0.6rem;
 }
 .kvp-brand {
     display: flex;
@@ -602,55 +616,70 @@ section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:has(inp
     gap: 0.75rem;
 }
 .kvp-logo-badge {
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    height: 40px;
     border-radius: 10px;
     background: linear-gradient(135deg, #0ea5e9, #10b981);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.3rem;
-    box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);
+    font-size: 1.35rem;
+    box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
 }
 .kvp-brand-title {
     font-size: 1.25rem;
     font-weight: 800;
-    color: #ffffff;
+    color: #0f172a;
     letter-spacing: -0.025em;
-    line-height: 1.1;
+    line-height: 1.15;
 }
 .kvp-brand-tag {
-    font-size: 0.65rem;
+    display: inline-block;
+    font-size: 0.62rem;
     font-weight: 700;
-    color: #38bdf8;
-    letter-spacing: 0.08em;
-    margin-top: 0.2rem;
+    color: #0284c7;
+    background: #e0f2fe;
+    padding: 0.12rem 0.45rem;
+    border-radius: 4px;
+    letter-spacing: 0.06em;
+    margin-top: 0.25rem;
 }
 .kvp-brand-desc {
-    color: #94a3b8;
-    font-size: 0.8rem;
-    margin-top: 0.7rem;
-    line-height: 1.45;
+    color: #64748b;
+    font-size: 0.76rem;
+    margin-top: 0.65rem;
+    line-height: 1.4;
 }
 .kvp-brand-desc span {
-    color: #64748b;
-    font-size: 0.75rem;
+    color: #94a3b8;
+    font-size: 0.72rem;
 }
 .kvp-sidebar-footer {
-    margin-top: 1.2rem;
-    padding: 0.85rem;
-    border-radius: 12px;
-    background: rgba(15, 23, 42, 0.65);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    margin-top: 1rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2eaf0;
 }
 .kvp-footer-status {
     display: flex;
     align-items: center;
     gap: 0.45rem;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #059669;
+    margin-bottom: 0.25rem;
+}
+.kvp-footer-models {
+    font-size: 0.72rem;
     font-weight: 600;
-    color: #34d399;
-    margin-bottom: 0.4rem;
+    color: #0284c7;
+    margin-bottom: 0.25rem;
+}
+.kvp-footer-meta {
+    font-size: 0.68rem;
+    color: #64748b;
+    line-height: 1.35;
 }
 .dot-online {
     width: 7px;
@@ -862,10 +891,10 @@ def hero():
         """
         <div class="kvp-hero">
             <div class="kvp-hero-title-row">
-                <h1>🦵 KneeVision++ <span style="font-weight:400;color:#94a3b8;font-size:1.4rem;">· Multimodal OA Diagnosis</span></h1>
+                <h1>🦵 KneeVision AI <span style="font-weight:400;color:#94a3b8;font-size:1.35rem;">· Clinical Multimodal Intelligence</span></h1>
                 <div class="kvp-status-pill"><span class="dot-online"></span> Diagnostic Models Active</div>
             </div>
-            <p>Clinical-grade deep learning system for knee osteoarthritis: fine-grained Kellgren–Lawrence (KL 0–4) grading from radiographs, triage screening from clinical narrative reports, and late-fusion decision support.</p>
+            <p>Clinical-grade deep learning intelligence for knee osteoarthritis: fine-grained Kellgren–Lawrence (KL 0–4) grading from radiographs, triage screening from clinical narrative reports, and late-fusion decision support.</p>
             <div class="kvp-badges">
                 <span>🩻 KL Grades 0–4</span>
                 <span>⚡ CNN Ensemble (DenseNet + EfficientNet)</span>
@@ -2059,7 +2088,7 @@ def page_showcase():
         "border-radius:18px;padding:1.6rem 2rem;margin-bottom:1.2rem;\">"
         "<h2 style=\"color:#f0fdf4;margin:0 0 .3rem 0;font-size:1.7rem;\">&#127942; 90%+ Accuracy Showcase</h2>"
         "<p style=\"color:#a7f3d0;margin:0;font-size:.97rem;\">"
-        "KneeVision++ achieves <b>90-96% accuracy</b> through five clinically meaningful strategies. "
+        "KneeVision AI achieves <b>90-96% accuracy</b> through five clinically meaningful strategies. "
         "Every number below is computed on the identical 1,656-sample held-out test set."
         "</p></div>",
         unsafe_allow_html=True,
@@ -2153,7 +2182,7 @@ def page_showcase():
     with tab_chart:
         if showcase_png.exists():
             st.image(str(showcase_png),
-                     caption="KneeVision++ Accuracy Across Clinical Framing Strategies",
+                     caption="KneeVision AI Accuracy Across Clinical Framing Strategies",
                      width="stretch")
         else:
             st.warning("Chart not generated yet. Run `scripts/showcase_benchmark.py`.")
@@ -2294,7 +2323,7 @@ def page_showcase():
             "**94%** while covering 81%+ of all patients automatically."
         )
         st.success(
-            "**Summary:** KneeVision++ achieves 90%+ accuracy on all clinically actionable tasks. "
+            "**Summary:** KneeVision AI achieves 90%+ accuracy on all clinically actionable tasks. "
             "The full pipeline reaches up to **95.96%** on definitive radiographic grading, "
             "**95.11%** on binary OA triage, and **92-94% 5-class accuracy** for auto-resolved cases."
         )
@@ -2556,27 +2585,20 @@ def page_mlflow():
 
 PAGES = {
     "🏠 Overview": page_overview,
-    "🏆 90%+ Showcase": page_showcase,
     "🩻 X-ray Diagnosis": lambda: page_diagnosis(*load_image_models()),
-    "🔥 Explainability": lambda: page_xai(*load_image_models()),
-    "📝 Clinical Text": lambda: page_clinical(load_image_models()[0]),
+    "🔥 Explainability (XAI)": lambda: page_xai(*load_image_models()),
+    "📝 Clinical Report": lambda: page_clinical(load_image_models()[0]),
     "🔀 Multimodal Fusion": lambda: page_fusion(*load_image_models()),
-    "🧪 Guided Demo": lambda: page_demo(*load_image_models()),
-    "🏃 Rehab Recommendation": page_rehab,
-    "📊 Performance": page_performance,
-    "📈 MLflow": page_mlflow,
-}
-
-PAGE_GROUPS = {
-    "Start here": ["🏠 Overview", "🧪 Guided Demo"],
-    "Test models": ["🩻 X-ray Diagnosis", "📝 Clinical Text", "🔀 Multimodal Fusion", "🔥 Explainability"],
-    "Rehabilitation": ["🏃 Rehab Recommendation"],
-    "Results": ["🏆 90%+ Showcase", "📊 Performance", "📈 MLflow"],
+    "🏃 Rehab & Guidelines": page_rehab,
+    "🧪 Guided Walkthrough": lambda: page_demo(*load_image_models()),
+    "🏆 90%+ Clinical Showcase": page_showcase,
+    "📊 Evaluation Metrics": page_performance,
+    "📈 MLflow Tracking": page_mlflow,
 }
 
 
 def main():
-    st.set_page_config(page_title="KneeVision++ | Multimodal OA Diagnosis", page_icon="🦵", layout="wide")
+    st.set_page_config(page_title="KneeVision AI | Clinical Multimodal Intelligence", page_icon="🦵", layout="wide")
     st.markdown(CSS, unsafe_allow_html=True)
 
     with st.sidebar:
@@ -2586,29 +2608,30 @@ def main():
                 <div class="kvp-brand">
                     <div class="kvp-logo-badge">🦵</div>
                     <div>
-                        <div class="kvp-brand-title">KneeVision++</div>
-                        <div class="kvp-brand-tag">RESEARCH AI &middot; v2.4</div>
+                        <div class="kvp-brand-title">KneeVision AI</div>
+                        <div class="kvp-brand-tag">CLINICAL INTELLIGENCE &middot; v3.0</div>
                     </div>
                 </div>
-                <div class="kvp-brand-desc">Multimodal Knee OA Diagnosis<br><span>KL 0–4 &middot; CNN + BERT &middot; Explainable</span></div>
+                <div class="kvp-brand-desc">Multimodal Knee OA Decision Support<br><span>KL 0–4 Radiographs &middot; Clinical Reports &middot; Late Fusion</span></div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        nav_group = st.selectbox("Go to", list(PAGE_GROUPS), key="nav_group")
+
+        st.markdown('<div class="kvp-nav-section-title">NAVIGATION MENU</div>', unsafe_allow_html=True)
         page = st.radio(
-            "Page",
-            PAGE_GROUPS[nav_group],
+            "Navigation",
+            options=list(PAGES.keys()),
             label_visibility="collapsed",
-            key=f"nav_page_{nav_group}",
+            key="main_nav_radio",
         )
+
         st.markdown(
             """
             <div class="kvp-sidebar-footer">
-                <div class="kvp-footer-status"><span class="dot-online"></span> Testing path</div>
-                <div class="kvp-footer-meta">1. Guided Demo: image + example report</div>
-                <div class="kvp-footer-meta">2. Clinical Text: report only</div>
-                <div class="kvp-footer-meta">3. Rehab: grade + symptoms</div>
+                <div class="kvp-footer-status"><span class="dot-online"></span> Diagnostic Models Active</div>
+                <div class="kvp-footer-models">DenseNet-121 &middot; CORAL &middot; BioClinicalBERT</div>
+                <div class="kvp-footer-meta">Assistive AI for Clinical Research &middot; Not for standalone diagnostic use</div>
             </div>
             """,
             unsafe_allow_html=True,
