@@ -40,6 +40,19 @@ CLINICAL_LEARNING_RATE = float(os.getenv("CLINICAL_LEARNING_RATE", "2e-5"))
 GUIDELINES_DIR = DATA_DIR / "guidelines"
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+# Start `ollama serve` on demand when a local server is not running (localhost URLs only).
+OLLAMA_AUTOSTART = os.getenv("OLLAMA_AUTOSTART", "true").lower() == "true"
+
+# Hosted LLM for the rehab summary (used where Ollama can't run, e.g. Streamlit Cloud).
+# LLM_PROVIDER: "ollama" (default, local) | "xai" (Grok) | "openai-compatible" (any /v1/chat/completions API).
+# "auto" picks xai when XAI_API_KEY is set, otherwise ollama. Keys come from the environment only.
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").lower()
+XAI_API_KEY = os.getenv("XAI_API_KEY", "")
+XAI_MODEL = os.getenv("XAI_MODEL", "grok-3-mini")
+XAI_BASE_URL = os.getenv("XAI_BASE_URL", "https://api.x.ai/v1")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+LLM_MODEL = os.getenv("LLM_MODEL", "")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "")
 
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "sqlite:///" + str(PROJECT_ROOT / "mlflow.db"))
 MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "kneevision")

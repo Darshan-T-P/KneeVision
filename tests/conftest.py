@@ -20,3 +20,8 @@ import kneevision.utils.tracking as _tracking
 _TEST_TMP = Path(tempfile.mkdtemp(prefix="kneevision_test_"))
 _tracking.MLFLOW_TRACKING_URI = f"sqlite:///{_TEST_TMP}/mlflow_test.db"
 _tracking.PROJECT_ROOT = _TEST_TMP
+
+# Tests must never spawn a real `ollama serve` (see kneevision.rag.llm.start_local_ollama).
+from kneevision.config import settings as _settings  # noqa: E402
+
+_settings.OLLAMA_AUTOSTART = False

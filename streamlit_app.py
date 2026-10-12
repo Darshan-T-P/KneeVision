@@ -22,6 +22,13 @@ import streamlit as st
 import torch
 from PIL import Image
 
+from kneevision.data.bilateral import (
+    detect_bilateral_radiograph,
+    detect_knee_prosthesis,
+    extract_bilateral_knees,
+    split_bilateral_halves,
+)
+from kneevision.data.joint_window import DEFAULT_JOINT_Y, knee_windows, multiscale_report
 from kneevision.data.transforms import val_transform
 from kneevision.models.image_model import load_trained_model
 from kneevision.training.losses import ordinal_to_probs
@@ -31,6 +38,7 @@ from kneevision.xai import gradcam_explain, lime_explain, scorecam_explain
 MODELS_DIR = Path(__file__).resolve().parent / "models"
 REPORTS_DIR = Path(__file__).resolve().parent / "reports"
 DEMO_DIR = Path(__file__).resolve().parent / "data" / "raw" / "test"
+DEMO_BILATERAL_PATH = Path(__file__).resolve().parent / "data" / "demo" / "bilateral_standing_ap.png"
 KL_LABELS = {0: "Normal", 1: "Doubtful", 2: "Mild", 3: "Moderate", 4: "Severe"}
 
 CHECKPOINT_REPO = "Darshan13/KneeVision-models"
@@ -40,7 +48,18 @@ REQUIRED_CHECKPOINTS = [
     "best_convnext_small_binary.json", "best_convnext_small_binary.pt",
     "best_clinical.pt",
     "best_fusion.pt",
+    # Final locked CORAL ordinal model (skipped gracefully if not yet on the HF repo)
+    "best_densenet121_ordinal_ordinal_soft_mixup_a04.json", "best_densenet121_ordinal_ordinal_soft_mixup_a04.pt",
 ]
+# Checkpoint file -> dropdown label, best first (the first available one is the default).
+IMAGE_MODEL_LABELS = {
+    "best_densenet121_ordinal_ordinal_soft_mixup_a04.pt": "DenseNet121 · CORAL ordinal (final)",
+    "best_densenet121_multitask.pt": "DenseNet121 · multitask (OARSI aux heads)",
+    "best_densenet121_focal_nomixup.pt": "DenseNet121 · focal, no MixUp",
+    "best_densenet121.pt": "DenseNet121 · standard 5-class",
+    "best_efficientnet-b4.pt": "EfficientNet-B4 · standard 5-class",
+}
+STANDARD_DENSENET_LABEL = IMAGE_MODEL_LABELS["best_densenet121.pt"]
 
 
 def ensure_checkpoints() -> None:
@@ -893,6 +912,19 @@ def grade_card(title: str, pred: int | None, conf: float | None, accent: str) ->
     )
 
 
+def prosthesis_card(title: str) -> str:
+    body = (
+        '<div class="kvp-grade" style="color:#f59e0b;font-size:2.0rem;letter-spacing:-0.5px;">🦾 TKA Implant</div>'
+        '<div class="kvp-sub" style="font-size:1.05rem;font-weight:700;color:#f8fafc;margin-bottom:0.4rem;">Total Knee Arthroplasty (Replaced)</div>'
+        '<div style="margin-bottom:0.75rem;"><span class="chip-warn">Artificial Prosthesis</span></div>'
+        '<div class="kvp-sub" style="color:#94a3b8;font-size:0.86rem;line-height:1.45;">'
+        '<b>Clinical Protocol Note:</b> Kellgren-Lawrence (KL 0–4) grading applies strictly to native biological joints. '
+        'Femoral metallic shield, tibial tray, and polyethylene spacer hardware replace biological cartilage.'
+        '</div>'
+    )
+    return card(title, body)
+
+
 def fusion_flow_diagram():
     st.markdown(
         """
@@ -1026,19 +1058,17 @@ def mlflow_runs_table() -> pd.DataFrame:
 def load_image_models():
     device = get_device()
     available = {}
-    for meta in checkpoint_metas():
-        if meta.get("binary") or meta.get("ordinal"):
-            continue
-        path = MODELS_DIR / meta["file"]
+    # Explicit, uniquely-labelled list. Keying by backbone name made checkpoints that share a
+    # backbone overwrite each other, so a label could silently load a different model locally
+    # than on the cloud. Missing files are skipped, so the cloud (fewer checkpoints) still works.
+    for filename, label in IMAGE_MODEL_LABELS.items():
+        path = MODELS_DIR / filename
         if not path.exists():
             continue
         try:
-            available[meta["model_name"]] = load_trained_model(
-                path, device, num_classes=meta.get("num_classes", 5)
-            )
+            available[label] = load_trained_model(path, device, num_classes=5)
         except (OSError, RuntimeError, ValueError, KeyError, ImportError) as exc:
             print(f"[load_image_models] Could not load {path}: {exc}")
-            continue
     return device, available
 
 
@@ -1313,85 +1343,381 @@ def page_overview():
 
 def page_diagnosis(device, image_models):
     st.subheader("🩻 X-ray Diagnosis")
-    st.caption("Upload a knee radiograph — get a KL grade, per-class confidences, and an independent OA screening verdict.")
+    st.caption("Upload a single knee crop or a full bilateral AP standing radiograph — automatic knee detection, dual-joint KL grading, and OA screening.")
 
-    col_img, col_results = st.columns([1, 1], gap="large")
-    with col_img:
+    # Top options: Upload Mode + Model Selector
+    c_mode, c_model = st.columns([1.3, 1.0])
+    with c_mode:
+        input_mode = st.radio(
+            "Radiograph Input Mode",
+            ["🔄 Auto-Detect (Single or Bilateral)", "👥 Bilateral AP (Both Knees: R & L)", "🩻 Single Knee (Focused Crop)"],
+            horizontal=True,
+            help="Auto-Detect analyzes aspect ratio and bone separation to automatically split bilateral views into Right and Left knee joints.",
+        )
+    with c_model:
+        model_choice = st.selectbox("Model", list(image_models.keys()) + ["Ensemble (all)"], key="diag_model_choice")
+
+    # File uploader and quick sample loader
+    c_up, c_sample = st.columns([2.5, 1.0])
+    with c_up:
         uploaded = st.file_uploader(
-            "Upload a knee X-ray",
+            "Upload a knee radiograph",
             type=["png", "jpg", "jpeg", "bmp"],
             key="diagnosis_xray_upload",
         )
-        if uploaded is not None:
-            image = Image.open(uploaded).convert("RGB")
-            st.image(
-                image,
-                caption=f"Uploaded X-ray · {image.width} × {image.height}px",
-                width="stretch",
+    with c_sample:
+        st.markdown("<div style='margin-top: 1.8rem;'></div>", unsafe_allow_html=True)
+        use_bilateral_sample = st.button("🧪 Try Bilateral Sample", help="Load sample 2-in-1 standing AP radiograph")
+
+    active_image = None
+    if uploaded is not None:
+        active_image = Image.open(uploaded).convert("RGB")
+    elif use_bilateral_sample and DEMO_BILATERAL_PATH.exists():
+        active_image = Image.open(DEMO_BILATERAL_PATH).convert("RGB")
+
+    if active_image is None:
+        st.info("Upload an X-ray above or click **Try Bilateral Sample** to start.")
+        return
+
+    # Decide single vs bilateral
+    is_bilateral = False
+    details = {}
+    if "Auto-Detect" in input_mode:
+        is_bilateral, conf, details = detect_bilateral_radiograph(active_image)
+        if is_bilateral:
+            st.success(f"👥 **Bilateral AP Radiograph Detected** (Both knees detected · Aspect ratio {details['aspect_ratio']:.2f} · {conf:.0%} confidence). Splitting into Patient Right (R) and Left (L) knee joints.")
+        else:
+            st.info("🩻 **Single Knee Radiograph Detected** (Focused single joint).")
+    elif "Bilateral" in input_mode:
+        is_bilateral = True
+        _, _, details = detect_bilateral_radiograph(active_image)
+    else:
+        is_bilateral = False
+
+    models = [image_models[m] for m in (image_models if model_choice == "Ensemble (all)" else [model_choice])]
+    bin_model, bin_name = load_binary_model()
+
+    if is_bilateral:
+        # Fine-tune settings
+        with st.expander("⚙️ Bilateral Split & Joint Centering Settings", expanded=False):
+            fc1, fc2 = st.columns(2)
+            with fc1:
+                def_split = int(details.get("split_ratio", 0.5) * 100)
+                split_pct = st.slider("Split Divider (% from left)", 35, 65, def_split, 1,
+                                      help="Adjust the divider line between Right and Left knee joints.")
+            with fc2:
+                joint_focus = st.checkbox("Focus Joint Space (Anatomical Centering)", value=True,
+                                          help="Crops joint-sized windows centred on the joint line to match model training, "
+                                               "and grades at three scales.")
+            joint_pct = st.slider("Joint line height (% from top of knee)", 30, 70, int(DEFAULT_JOINT_Y * 100), 1,
+                                  help="Move until the cyan/purple box is centred on the joint space (the dark line "
+                                       "between femur and tibia).")
+
+        rk, lk, annotated = extract_bilateral_knees(
+            active_image,
+            split_ratio=split_pct / 100.0,
+            joint_focus=joint_focus,
+            joint_y_frac=joint_pct / 100.0,
+        )
+
+        st.image(annotated, caption="Bilateral Radiograph Overview: Right Knee (R, Cyan) · Left Knee (L, Purple)", width="stretch")
+
+        # Run inference on both knees
+        # Joint-sized windows at three scales with contrast normalisation: a single wide crop
+        # makes the grade depend on crop scale, not anatomy.
+        if joint_focus:
+            half_r, half_l = split_bilateral_halves(active_image, split_ratio=split_pct / 100.0)
+            reports = [
+                multiscale_report(knee_windows(half, joint_pct / 100.0),
+                                  lambda w: image_probs(w, models, device))
+                for half in (half_r, half_l)
+            ]
+            rep_r, rep_l = reports
+            probs_r, probs_l = rep_r.probs, rep_l.probs
+        else:
+            rep_r = rep_l = None
+            probs_r = image_probs(rk, models, device)
+            probs_l = image_probs(lk, models, device)
+        pred_r, conf_r = int(probs_r.argmax()), float(probs_r.max())
+        pred_l, conf_l = int(probs_l.argmax()), float(probs_l.max())
+
+        # Automated heuristic check for metallic prostheses (TKA)
+        is_pr, _, _ = detect_knee_prosthesis(rk)
+        is_pl, _, _ = detect_knee_prosthesis(lk)
+
+        col_r, col_l = st.columns(2, gap="large")
+        with col_r:
+            st.markdown("### 🦵 Patient Right Knee (R)")
+            st.image(rk, caption=f"Right Knee Joint Crop · {rk.width}×{rk.height}px", width="stretch")
+
+            r_type = st.radio(
+                "Joint Condition (Right Knee)",
+                ["🦴 Native Biological Joint", "🦾 Post-TKA / Prosthesis (Replacement)"],
+                index=1 if is_pr else 0,
+                key="r_knee_joint_type",
+                horizontal=True,
             )
 
-    with col_results:
-        model_choice = st.selectbox("Model", list(image_models.keys()) + ["Ensemble (all)"])
-        if uploaded is None:
-            st.info("Upload an X-ray on the left to see the prediction and analysis here.")
-        else:
-            models = [image_models[m] for m in (image_models if model_choice == "Ensemble (all)" else [model_choice])]
-            probs = image_probs(image, models, device)
-            pred, confidence = int(probs.argmax()), float(probs.max())
-
-            st.markdown("<div style='margin-top: 0.9rem;'></div>", unsafe_allow_html=True)
-            st.markdown(grade_card(f"KL grade — {model_choice}", pred, confidence, "#38bdf8"), unsafe_allow_html=True)
-            st.caption("Grades: 0 Normal · 1 Doubtful · 2 Mild · 3 Moderate · 4 Severe")
-
-            bin_model, bin_name = load_binary_model()
-            if bin_model is not None:
-                p_oa = binary_oa_prob(bin_model, image, device)
-                verdict = ('<span class="chip-warn">OA detected</span>'
-                           if p_oa >= 0.5 else '<span class="chip-ok">No OA</span>')
-                body = (f"<div style='font-size:2rem;font-weight:800;color:#38bdf8'>{p_oa:.1%}</div>"
-                        f"<div class='kvp-sub'>probability of OA (KL ≥ 2)</div>"
-                        f"<div class='kvp-bar'><div class='kvp-fill' style='width:{int(p_oa*100)}%'></div></div>"
-                        f"<div style='margin-top:.6rem'>{verdict}</div>")
-                st.markdown(card(f"OA screening — {bin_name}", body), unsafe_allow_html=True)
-                st.caption("Dedicated binary detector (KL 0-1 vs 2-4), threshold 0.50.")
+            if "Post-TKA" in r_type:
+                st.markdown(prosthesis_card("Right Knee — Arthroplasty Assessment"), unsafe_allow_html=True)
             else:
-                st.markdown(card("OA screening", "<div class='kvp-sub'>No binary checkpoint found.</div>"), unsafe_allow_html=True)
+                st.markdown(grade_card(f"Right Knee — {model_choice}", pred_r, conf_r, "#38bdf8"), unsafe_allow_html=True)
+                if bin_model is not None:
+                    p_oa_r = binary_oa_prob(bin_model, rk, device)
+                    verdict_r = ('<span class="chip-warn">OA detected</span>'
+                                 if p_oa_r >= 0.5 else '<span class="chip-ok">No OA</span>')
+                    body_r = (f"<div style='font-size:2rem;font-weight:800;color:#38bdf8'>{p_oa_r:.1%}</div>"
+                              f"<div class='kvp-sub'>probability of OA (KL ≥ 2)</div>"
+                              f"<div class='kvp-bar'><div class='kvp-fill' style='width:{int(p_oa_r*100)}%'></div></div>"
+                              f"<div style='margin-top:.6rem'>{verdict_r}</div>")
+                    st.markdown(card(f"OA screening — {bin_name}", body_r), unsafe_allow_html=True)
+                if rep_r is not None and rep_r.scale_sensitive:
+                    st.warning("⚠️ **Low-reliability grade** — confidence is under 70% or the grade changes with crop scale "
+                               "(per-scale grades: " + ", ".join(f"KL {g}" for g in rep_r.per_scale_pred)
+                               + f"; mean confidence {rep_r.confidence:.0%}). On held-out test images, predictions below 70% "
+                               "confidence were exactly right only about half the time (usually within one grade). "
+                               "Re-centre the joint line above, or treat this as indeterminate and have a clinician review the film.")
+                st.markdown("**Right Knee Class Probabilities**")
+                st.bar_chart(pd.Series(probs_r, index=[f"G{i} {KL_LABELS[i]}" for i in range(5)]), height=200)
 
-            st.markdown("<div style='margin-top: 0.8rem;'></div>", unsafe_allow_html=True)
-            st.markdown("**Class Probabilities**")
-            st.bar_chart(pd.Series(probs, index=[f"G{i} {KL_LABELS[i]}" for i in range(5)]), height=220)
+        with col_l:
+            st.markdown("### 🦵 Patient Left Knee (L)")
+            st.image(lk, caption=f"Left Knee Joint Crop · {lk.width}×{lk.height}px", width="stretch")
 
-            with st.expander(f"🏃 Recommended Rehabilitation Plan for KL {pred} ({KL_LABELS[pred]})", expanded=False):
-                recommender = load_rehab_recommender()
-                rehab_res = recommender.recommend(kl_grade=pred, patient_context=f"Radiographic diagnosis: KL Grade {pred} ({KL_LABELS[pred]}).")
-                st.markdown(rehab_res.synthesis)
-                st.caption(f"⚠️ {rehab_res.disclaimer}")
-                show_rehab_sources(rehab_res)
+            l_type = st.radio(
+                "Joint Condition (Left Knee)",
+                ["🦴 Native Biological Joint", "🦾 Post-TKA / Prosthesis (Replacement)"],
+                index=1 if is_pl else 0,
+                key="l_knee_joint_type",
+                horizontal=True,
+            )
+
+            if "Post-TKA" in l_type:
+                st.markdown(prosthesis_card("Left Knee — Arthroplasty Assessment"), unsafe_allow_html=True)
+            else:
+                st.markdown(grade_card(f"Left Knee — {model_choice}", pred_l, conf_l, "#a855f7"), unsafe_allow_html=True)
+                if bin_model is not None:
+                    p_oa_l = binary_oa_prob(bin_model, lk, device)
+                    verdict_l = ('<span class="chip-warn">OA detected</span>'
+                                 if p_oa_l >= 0.5 else '<span class="chip-ok">No OA</span>')
+                    body_l = (f"<div style='font-size:2rem;font-weight:800;color:#a855f7'>{p_oa_l:.1%}</div>"
+                              f"<div class='kvp-sub'>probability of OA (KL ≥ 2)</div>"
+                              f"<div class='kvp-bar'><div class='kvp-fill' style='width:{int(p_oa_l*100)}%;background:#a855f7'></div></div>"
+                              f"<div style='margin-top:.6rem'>{verdict_l}</div>")
+                    st.markdown(card(f"OA screening — {bin_name}", body_l), unsafe_allow_html=True)
+                if rep_l is not None and rep_l.scale_sensitive:
+                    st.warning("⚠️ **Low-reliability grade** — confidence is under 70% or the grade changes with crop scale "
+                               "(per-scale grades: " + ", ".join(f"KL {g}" for g in rep_l.per_scale_pred)
+                               + f"; mean confidence {rep_l.confidence:.0%}). On held-out test images, predictions below 70% "
+                               "confidence were exactly right only about half the time (usually within one grade). "
+                               "Re-centre the joint line above, or treat this as indeterminate and have a clinician review the film.")
+                st.markdown("**Left Knee Class Probabilities**")
+                st.bar_chart(pd.Series(probs_l, index=[f"G{i} {KL_LABELS[i]}" for i in range(5)]), height=200)
+
+        # Comparative Summary Card
+        r_is_tka = "Post-TKA" in r_type
+        l_is_tka = "Post-TKA" in l_type
+
+        st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+        if r_is_tka and l_is_tka:
+            sym_title = "🦾 Bilateral Total Knee Arthroplasty (Both Knees Replaced)"
+            sym_desc = "Both knee joints have undergone surgical arthroplasty (TKA). Kellgren-Lawrence osteoarthritis grading is clinically inapplicable to both limbs."
+            meta_html = "<div><b>Right (R):</b> TKA Prosthesis (KL N/A)</div><div><b>Left (L):</b> TKA Prosthesis (KL N/A)</div>"
+            dominant_grade = 0
+            rehab_context = "Bilateral total knee arthroplasty with artificial hardware in both limbs."
+        elif r_is_tka or l_is_tka:
+            tka_side = "Right Knee (R)" if r_is_tka else "Left Knee (L)"
+            native_side = "Left Knee (L)" if r_is_tka else "Right Knee (R)"
+            native_pred = pred_l if r_is_tka else pred_r
+            native_conf = conf_l if r_is_tka else conf_r
+
+            sym_title = "⚠️ Unilateral Knee Arthroplasty (TKA) with Contralateral Native OA"
+            sym_desc = (
+                f"Patient has undergone <b>Total Knee Replacement on the {tka_side}</b>, while the contralateral "
+                f"<b>{native_side} is a native biological joint presenting with KL {native_pred} ({KL_LABELS[native_pred]})</b>. "
+                f"Primary clinical strategy: conservative physical therapy and joint offloading to preserve the native {native_side} "
+                f"and prevent or delay secondary surgery, while supporting low-impact mobility for the replaced {tka_side}."
+            )
+            meta_html = (
+                f"<div><b>{tka_side}:</b> TKA Prosthesis (KL N/A)</div>"
+                f"<div><b>{native_side}:</b> Native KL {native_pred} ({native_conf:.1%})</div>"
+            )
+            dominant_grade = native_pred
+            rehab_context = f"Unilateral TKA on {tka_side}. Contralateral {native_side} has native KL {native_pred} ({KL_LABELS[native_pred]})."
+        elif pred_r == pred_l:
+            sym_title = "⚖️ Symmetric Bilateral Findings"
+            sym_desc = f"Both native knees exhibit concordant radiographic severity: <b>KL Grade {pred_r} ({KL_LABELS[pred_r]})</b>."
+            meta_html = f"<div><b>Right (R):</b> KL {pred_r} ({conf_r:.1%})</div><div><b>Left (L):</b> KL {pred_l} ({conf_l:.1%})</div>"
+            dominant_grade = pred_r
+            rehab_context = f"Bilateral AP radiograph: Right knee KL {pred_r}, Left knee KL {pred_l}."
+        else:
+            diff = abs(pred_r - pred_l)
+            more_severe = "Right Knee (R)" if pred_r > pred_l else "Left Knee (L)"
+            sym_title = f"⚠️ Asymmetric Bilateral Findings ({diff}-Grade Discrepancy)"
+            sym_desc = (f"Asymmetric disease detected: <b>Right Knee is KL {pred_r} ({KL_LABELS[pred_r]})</b>, "
+                        f"while <b>Left Knee is KL {pred_l} ({KL_LABELS[pred_l]})</b>. "
+                        f"Primary intervention should focus on the more affected <b>{more_severe}</b>.")
+            meta_html = f"<div><b>Right (R):</b> KL {pred_r} ({conf_r:.1%})</div><div><b>Left (L):</b> KL {pred_l} ({conf_l:.1%})</div>"
+            dominant_grade = max(pred_r, pred_l)
+            rehab_context = f"Bilateral AP radiograph: Right knee KL {pred_r}, Left knee KL {pred_l}."
+
+        st.markdown(
+            card(
+                sym_title,
+                f"<div class='kvp-sub' style='font-size:1.05rem;color:#f8fafc;'>{sym_desc}</div>"
+                f"<div style='margin-top:0.8rem;display:flex;gap:1.5rem;'>{meta_html}</div>",
+            ),
+            unsafe_allow_html=True,
+        )
+
+        # Rehab plan
+        rehab_title = "Post-Arthroplasty & Joint Preservation Plan" if (r_is_tka or l_is_tka) else f"Recommended Bilateral Plan (KL {dominant_grade} - {KL_LABELS[dominant_grade]})"
+        with st.expander(f"🏃 {rehab_title}", expanded=False):
+            recommender = load_rehab_recommender()
+            rehab_res = recommender.recommend(kl_grade=dominant_grade, patient_context=rehab_context)
+            st.markdown(rehab_res.synthesis)
+            st.caption(f"⚠️ {rehab_res.disclaimer}")
+            show_rehab_sources(rehab_res)
+
+    else:
+        # Standard Single Knee
+        col_img, col_results = st.columns([1, 1], gap="large")
+        with col_img:
+            st.image(
+                active_image,
+                caption=f"Uploaded Single Knee X-ray · {active_image.width} × {active_image.height}px",
+                width="stretch",
+            )
+        with col_results:
+            is_single_pr, _, _ = detect_knee_prosthesis(active_image)
+            single_type = st.radio(
+                "Joint Condition",
+                ["🦴 Native Biological Joint", "🦾 Post-TKA / Prosthesis (Replacement)"],
+                index=1 if is_single_pr else 0,
+                key="single_knee_joint_type",
+                horizontal=True,
+            )
+
+            if "Post-TKA" in single_type:
+                st.markdown(prosthesis_card("Knee Radiograph — Arthroplasty Assessment"), unsafe_allow_html=True)
+            else:
+                probs = image_probs(active_image, models, device)
+                pred, confidence = int(probs.argmax()), float(probs.max())
+
+                st.markdown("<div style='margin-top: 0.9rem;'></div>", unsafe_allow_html=True)
+                st.markdown(grade_card(f"KL grade — {model_choice}", pred, confidence, "#38bdf8"), unsafe_allow_html=True)
+                st.caption("Grades: 0 Normal · 1 Doubtful · 2 Mild · 3 Moderate · 4 Severe")
+
+                if bin_model is not None:
+                    p_oa = binary_oa_prob(bin_model, active_image, device)
+                    verdict = ('<span class="chip-warn">OA detected</span>'
+                               if p_oa >= 0.5 else '<span class="chip-ok">No OA</span>')
+                    body = (f"<div style='font-size:2rem;font-weight:800;color:#38bdf8'>{p_oa:.1%}</div>"
+                            f"<div class='kvp-sub'>probability of OA (KL ≥ 2)</div>"
+                            f"<div class='kvp-bar'><div class='kvp-fill' style='width:{int(p_oa*100)}%'></div></div>"
+                            f"<div style='margin-top:.6rem'>{verdict}</div>")
+                    st.markdown(card(f"OA screening — {bin_name}", body), unsafe_allow_html=True)
+                    st.caption("Dedicated binary detector (KL 0-1 vs 2-4), threshold 0.50.")
+                else:
+                    st.markdown(card("OA screening", "<div class='kvp-sub'>No binary checkpoint found.</div>"), unsafe_allow_html=True)
+
+                st.markdown("<div style='margin-top: 0.8rem;'></div>", unsafe_allow_html=True)
+                st.markdown("**Class Probabilities**")
+                st.bar_chart(pd.Series(probs, index=[f"G{i} {KL_LABELS[i]}" for i in range(5)]), height=220)
+
+                with st.expander(f"🏃 Recommended Rehabilitation Plan for KL {pred} ({KL_LABELS[pred]})", expanded=False):
+                    recommender = load_rehab_recommender()
+                    rehab_res = recommender.recommend(kl_grade=pred, patient_context=f"Radiographic diagnosis: KL Grade {pred} ({KL_LABELS[pred]}).")
+                    st.markdown(rehab_res.synthesis)
+                    st.caption(f"⚠️ {rehab_res.disclaimer}")
+                    show_rehab_sources(rehab_res)
 
 
 def page_xai(device, image_models):
     st.subheader("🔥 Explainability")
     st.caption("Grad-CAM / Score-CAM / LIME highlight where the CNN looks when deciding (DenseNet backbone).")
-    xai_uploaded = st.file_uploader("Upload a knee X-ray for explanation", type=["png", "jpg", "jpeg", "bmp"],
-                                    key="xai_upload")
-    xai_method = st.radio("Explanation method", ["Grad-CAM", "Score-CAM", "LIME"], horizontal=True)
 
-    if xai_uploaded is None:
-        st.info("Upload an X-ray to generate heatmaps.")
+    c_x1, c_x2 = st.columns([2.5, 1.0])
+    with c_x1:
+        xai_uploaded = st.file_uploader("Upload a knee X-ray for explanation", type=["png", "jpg", "jpeg", "bmp"],
+                                        key="xai_upload")
+    with c_x2:
+        st.markdown("<div style='margin-top: 1.8rem;'></div>", unsafe_allow_html=True)
+        use_bilateral_xai = st.button("🧪 Try Bilateral Sample", key="xai_bilat_btn", help="Load sample 2-in-1 radiograph")
+
+    active_xai_img = None
+    if xai_uploaded is not None:
+        active_xai_img = Image.open(xai_uploaded).convert("RGB")
+    elif use_bilateral_xai and DEMO_BILATERAL_PATH.exists():
+        active_xai_img = Image.open(DEMO_BILATERAL_PATH).convert("RGB")
+
+    if active_xai_img is None:
+        st.info("Upload an X-ray to generate heatmaps or click **Try Bilateral Sample**.")
         return
 
-    image = Image.open(xai_uploaded).convert("RGB")
-    model = image_models.get("densenet121") or next(iter(image_models.values()))
+    # Check if bilateral
+    is_bilateral, _, details = detect_bilateral_radiograph(active_xai_img)
+    xai_method = st.radio("Explanation method", ["Grad-CAM", "Score-CAM", "LIME"], horizontal=True)
+
+    model = image_models.get(STANDARD_DENSENET_LABEL) or next(iter(image_models.values()))
+
+    if is_bilateral:
+        st.info("👥 **Bilateral Radiograph Detected** · Visualizing explainability heatmaps on anatomical knee crops.")
+        joint_sel = st.radio("Joint to explain", ["Both Knees (Side-by-Side)", "Right Knee (R)", "Left Knee (L)"], horizontal=True)
+
+        rk, lk, _ = extract_bilateral_knees(active_xai_img, joint_focus=True)
+
+        def _explain_joint(img):
+            if xai_method == "Grad-CAM":
+                p, c, ov = gradcam_explain(model, img, val_transform, device)
+            elif xai_method == "Score-CAM":
+                p, c, ov = scorecam_explain(model, img, val_transform, device)
+            else:
+                p, c, imp, _ = lime_explain(model, img, val_transform, device)
+                from kneevision.xai.base import overlay_heatmap
+                img_np = np.array(img.resize((224, 224)))
+                ov = overlay_heatmap(imp, img_np, alpha=0.55)
+            return p, c, ov
+
+        with st.spinner(f"Computing {xai_method} explanation..."):
+            if joint_sel == "Both Knees (Side-by-Side)":
+                pr, cr, ov_r = _explain_joint(rk)
+                pl, cl, ov_l = _explain_joint(lk)
+
+                col_r, col_l = st.columns(2, gap="large")
+                with col_r:
+                    st.markdown("### 🦵 Patient Right Knee (R)")
+                    st.image(ov_r, caption=f"{xai_method} Heatmap · Predicted KL {pr} ({KL_LABELS[pr]}) · {cr:.1%}", width="stretch")
+                    st.markdown(
+                        card("Right Knee Feature Saliency",
+                             f"<div class='kvp-sub' style='color:#f8fafc;'>Predicted <b>KL Grade {pr}</b> ({KL_LABELS[pr]})</div>"
+                             f"<div class='kvp-sub' style='margin-top:0.5rem;color:#94a3b8;'>Salient features focused on medial joint compartment and subchondral bone.</div>"),
+                        unsafe_allow_html=True,
+                    )
+                with col_l:
+                    st.markdown("### 🦵 Patient Left Knee (L)")
+                    st.image(ov_l, caption=f"{xai_method} Heatmap · Predicted KL {pl} ({KL_LABELS[pl]}) · {cl:.1%}", width="stretch")
+                    st.markdown(
+                        card("Left Knee Feature Saliency",
+                             f"<div class='kvp-sub' style='color:#f8fafc;'>Predicted <b>KL Grade {pl}</b> ({KL_LABELS[pl]})</div>"
+                             f"<div class='kvp-sub' style='margin-top:0.5rem;color:#94a3b8;'>Salient features focused on joint space narrowing and osteophytic changes.</div>"),
+                        unsafe_allow_html=True,
+                    )
+                return
+            elif joint_sel == "Right Knee (R)":
+                active_xai_img = rk
+            else:
+                active_xai_img = lk
 
     with st.spinner(f"Computing {xai_method} explanation..."):
         if xai_method == "Grad-CAM":
-            pred, conf, overlay = gradcam_explain(model, image, val_transform, device)
+            pred, conf, overlay = gradcam_explain(model, active_xai_img, val_transform, device)
         elif xai_method == "Score-CAM":
-            pred, conf, overlay = scorecam_explain(model, image, val_transform, device)
+            pred, conf, overlay = scorecam_explain(model, active_xai_img, val_transform, device)
         else:
-            pred, conf, importance, _segments = lime_explain(model, image, val_transform, device)
+            pred, conf, importance, _segments = lime_explain(model, active_xai_img, val_transform, device)
             from kneevision.xai.base import overlay_heatmap
-            img_np = np.array(image.resize((224, 224)))
+            img_np = np.array(active_xai_img.resize((224, 224)))
             overlay = overlay_heatmap(importance, img_np, alpha=0.55)
             # Add subtle grid lines on the superpixels
             grid_size = 7
@@ -1402,7 +1728,7 @@ def page_xai(device, image_models):
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.image(image, caption="Original X-ray", width="stretch")
+        st.image(active_xai_img, caption="Analyzed Knee Crop", width="stretch")
     with c2:
         kind = f"{xai_method} Superpixel Heatmap" if xai_method == "LIME" else f"{xai_method} Heatmap"
         st.image(overlay, caption=f"{kind} — predicted KL {pred}", width="stretch")
@@ -2136,12 +2462,16 @@ def page_rehab():
             placeholder="e.g. persistent pain on stairs, reduced walking tolerance",
         )
 
+    if getattr(load_rehab_recommender().llm, "provider", "ollama") != "ollama":
+        st.caption("🔒 The text above is sent to an external AI provider to write the summary. "
+                   "Do not enter names, dates of birth or other identifying details.")
+
     if st.button("Generate Rehabilitation Plan", type="primary"):
         recommender = load_rehab_recommender()
-        with st.spinner("Retrieving orthopedic guidelines & synthesizing personalized plan via Llama 3.2..."):
+        with st.spinner(f"Retrieving orthopedic guidelines & synthesizing plan via {recommender.llm.label}..."):
             result = recommender.recommend(grade, patient_context=custom_input)
 
-        badge = "🧠 Llama-3.2:1B RAG Synthesis" if result.used_llm else "📄 Guideline Excerpts (Direct)"
+        badge = f"🧠 {recommender.llm.label} · RAG" if result.used_llm else "📄 Guideline Excerpts (Direct)"
         badge_style = "kvp-tag-purple" if result.used_llm else "kvp-tag-blue"
 
         st.markdown(
@@ -2159,7 +2489,8 @@ def page_rehab():
         st.markdown(result.synthesis)
 
         if not result.used_llm:
-            st.warning("Ollama isn't reachable at localhost:11434 — showing retrieved guideline excerpts directly instead of an LLM-synthesized summary.")
+            st.warning("The language model wasn't available (or its summary failed the faithfulness check) — "
+                       "showing retrieved guideline excerpts directly instead of an LLM-synthesized summary.")
 
         show_rehab_sources(result)
 

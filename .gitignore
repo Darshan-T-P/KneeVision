@@ -60,3 +60,10 @@ data/oai/reports/
 data/guidelines_raw/
 mlflow.db.bak-*
 deploy/mlflow_space/mlflow.db
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Patient radiographs / PHI: never commit
+/58.KNEE*.png
+/data/demo/user_*

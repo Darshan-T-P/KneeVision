@@ -72,7 +72,7 @@ def test_unfaithful_draft_is_retried_with_the_problems_named(tmp_path):
     llm = ScriptedLLM("Acupuncture is great.", "Exercise helps.")
     rec = recommender(llm, tmp_path).recommend(2)
     assert rec.used_llm and rec.llm_attempts == 2 and rec.faithfulness_flags
-    assert "acupuncture" in llm.prompts[1] and "rejected" in llm.prompts[1]
+    assert "acupuncture" in llm.prompts[1] and "Correction" in llm.prompts[1]
     assert "Exercise helps." in rec.synthesis
 
 
@@ -103,3 +103,46 @@ def test_expand_context_maps_lay_terms():
     assert "topical NSAIDs" in expand_context("prefers a gel")
     assert "weight loss" in expand_context("BMI 33")
     assert expand_context("no known terms here") == "no known terms here"
+
+
+def test_flags_age_not_in_context():
+    # Real failure: llama3.2:1b read "BMI 31" as an age.
+    answer = "For a 68-year-old patient who is 31 years old and prefers a gel, exercise helps."
+    problems = find_unsupported_claims(answer, [EXERCISE], patient_context="68yo, BMI 31, prefers a gel")
+    assert any("age of 31" in p for p in problems)
+
+
+def test_age_from_context_is_fine():
+    assert find_unsupported_claims("A 68-year-old patient should exercise.", [EXERCISE],
+                                   patient_context="68-year-old, BMI 31") == []
+
+
+def test_refusal_is_flagged():
+    problems = find_unsupported_claims("I cannot provide a summary that includes weight loss advice.", [EXERCISE])
+    assert problems and "declines" in problems[0]
+
+
+def test_refusal_twice_falls_back_to_excerpts(tmp_path):
+    llm = ScriptedLLM("I cannot help with that.", "I'm sorry, I can't do that.")
+    rec = recommender(llm, tmp_path).recommend(2)
+    assert not rec.used_llm and "Structured exercise" in rec.synthesis
+
+
+def test_repair_ages_rewrites_wrong_age_when_context_gives_one():
+    from kneevision.rag.faithfulness import repair_ages
+    fixed = repair_ages("A 68-year-old patient who is 31 years old should exercise.", "68yo, BMI 31")
+    assert "31 years old" not in fixed and fixed.count("68") == 2
+
+
+def test_repair_ages_leaves_text_alone_without_a_single_known_age():
+    from kneevision.rag.faithfulness import repair_ages
+    text = "A patient who is 31 years old should exercise."
+    assert repair_ages(text, "BMI 31") == text
+    assert repair_ages(text, "68yo and 70yo") == text
+
+
+def test_pipeline_repairs_misread_age_without_a_retry(tmp_path):
+    llm = ScriptedLLM("This 68-year-old, who is 31 years old, benefits from exercise.")
+    rec = recommender(llm, tmp_path).recommend(2, patient_context="68yo, BMI 31")
+    assert rec.used_llm and rec.llm_attempts == 1 and "31 years old" not in rec.synthesis
+    assert rec.faithfulness_flags and any("age of 31" in f for f in rec.faithfulness_flags)

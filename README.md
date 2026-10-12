@@ -50,6 +50,12 @@ The system integrates:
 | **🦙 Meta Llama 3.2 1B (Ollama)** | Local quantized LLM for guideline-grounded rehabilitation generation | [ollama.com/library/llama3.2](https://ollama.com/library/llama3.2) |
 | **🐙 GitHub Source Code** | Complete implementation, tests, evaluation scripts, and audits | [github.com/Darshan-T-P/KneeVision](https://github.com/Darshan-T-P/KneeVision) |
 
+- **Hosted LLM for the rehab advisor (Streamlit Cloud):** Ollama cannot run on Community Cloud, so set
+  `XAI_API_KEY` (and optionally `XAI_MODEL`, `LLM_PROVIDER=auto`) under *App settings → Secrets*; see
+  [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example). Without a key the app falls back to showing
+  the retrieved guideline excerpts. Any OpenAI-compatible API also works via `LLM_PROVIDER=openai-compatible`,
+  `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`. The patient-context text is sent to the provider, so the app warns
+  users not to enter identifying details.
 - **Cold Start Notice:** On Streamlit Community Cloud cold starts, the app automatically fetches required model weights from the Hugging Face repository above (`ensure_checkpoints()`). Subsequent runs reuse the cached weights.
 - **Hugging Face Model Checkpoints hosted:**
   - `best_densenet121_ordinal_ordinal_soft_mixup_a04.pt` (Final locked CORAL ordinal model)

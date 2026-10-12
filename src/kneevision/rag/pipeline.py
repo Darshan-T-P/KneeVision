@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kneevision.rag.corpus import GuidelineChunk
-from kneevision.rag.faithfulness import find_unsupported_claims
-from kneevision.rag.llm import OllamaClient, OllamaUnavailableError
+from kneevision.rag.faithfulness import find_unsupported_claims, repair_ages
+from kneevision.rag.llm import LLMUnavailableError, make_llm_client
 from kneevision.rag.retriever import GuidelineRetriever
 
 DISCLAIMER = (
@@ -35,12 +35,12 @@ class RehabRecommender:
     so the pipeline degrades gracefully rather than failing outright.
     """
 
-    def __init__(self, retriever: GuidelineRetriever, llm: OllamaClient | None = None):
+    def __init__(self, retriever: GuidelineRetriever, llm=None):
         self.retriever = retriever
-        self.llm = llm or OllamaClient()
+        self.llm = llm or make_llm_client()
 
     @classmethod
-    def from_guidelines_dir(cls, guidelines_dir: Path, llm: OllamaClient | None = None) -> "RehabRecommender":
+    def from_guidelines_dir(cls, guidelines_dir: Path, llm=None) -> "RehabRecommender":
         return cls(GuidelineRetriever.from_dir(guidelines_dir), llm=llm)
 
     def recommend(self, kl_grade: int, patient_context: str = "", top_k: int = 4) -> RehabRecommendation:
@@ -57,11 +57,18 @@ class RehabRecommender:
             synthesis = self.llm.generate(prompt)
             attempts = 1
             flags = find_unsupported_claims(synthesis, chunks, patient_context)
-            if flags:
+            repaired = repair_ages(synthesis, patient_context) if flags else synthesis
+            if flags and repaired != synthesis and not find_unsupported_claims(repaired, chunks, patient_context):
+                # Only a misread age (e.g. "BMI 31" taken as an age) was wrong: fix the number, keep the draft.
+                synthesis, used_llm = repaired, True
+            elif flags:
                 # One retry that names the problems; if the draft is still unfaithful, fall
                 # back to the retrieved excerpts rather than show an unsupported summary.
-                retry = (prompt + "\n\nYour previous draft was rejected because it "
-                         + "; ".join(flags) + ". Rewrite it using ONLY the excerpts above.")
+                # A bare "your draft was rejected" makes small models refuse; give a specific correction.
+                retry = (prompt.rsplit("Summary:", 1)[0]
+                         + "Correction for the summary you are about to write: " + "; ".join(flags)
+                         + ". Write the summary again from the excerpts only, in the same 4-6 sentence format.\n\n"
+                         "Summary:")
                 synthesis = self.llm.generate(retry)
                 attempts = 2
                 if find_unsupported_claims(synthesis, chunks, patient_context):
@@ -71,7 +78,7 @@ class RehabRecommender:
                     used_llm = True
             else:
                 used_llm = True
-        except OllamaUnavailableError:
+        except LLMUnavailableError:
             synthesis = self._fallback_synthesis(chunks)
             used_llm = False
 
@@ -138,7 +145,7 @@ class RehabRecommender:
         }
         return f"Grade-specific clinical safeguard: {notes[kl_grade]}"
 
-    def _fallback_synthesis(self, chunks: list[GuidelineChunk], reason: str = "Local LLM unavailable") -> str:
+    def _fallback_synthesis(self, chunks: list[GuidelineChunk], reason: str = "LLM unavailable") -> str:
         if not chunks:
             return "No matching guideline excerpts were found. " + DISCLAIMER
         bullets = "\n".join(f"- {c.heading}: {c.text.splitlines()[0]}" for c in chunks)
