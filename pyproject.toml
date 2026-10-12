@@ -37,3 +37,6 @@ where = ["src"]
 [tool.ruff.lint.per-file-ignores]
 "src/kneevision/api/main.py" = ["B008"]
 "streamlit_app.py" = ["E402"]
+"scripts/*" = ["E402"]
+"notebooks/*" = ["E401", "E702", "F541", "F401", "F811"]
+

@@ -58,6 +58,8 @@ data/oai/processed/
 data/oai/reports/
 /models
 data/guidelines_raw/
+data/external/*
+!data/external/.gitkeep
 mlflow.db.bak-*
 deploy/mlflow_space/mlflow.db
 
@@ -67,3 +69,4 @@ deploy/mlflow_space/mlflow.db
 # Patient radiographs / PHI: never commit
 /58.KNEE*.png
 /data/demo/user_*
+Claude outputs/

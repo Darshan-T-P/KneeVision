@@ -39,6 +39,8 @@ MODELS_DIR = Path(__file__).resolve().parent / "models"
 REPORTS_DIR = Path(__file__).resolve().parent / "reports"
 DEMO_DIR = Path(__file__).resolve().parent / "data" / "raw" / "test"
 DEMO_BILATERAL_PATH = Path(__file__).resolve().parent / "data" / "demo" / "bilateral_standing_ap.png"
+DEMO_NATIVE_PATH = Path(__file__).resolve().parent / "data" / "demo" / "sample_native_crop.png"
+DEMO_PROSTHESIS_PATH = Path(__file__).resolve().parent / "data" / "demo" / "sample_prosthetic_crop.png"
 KL_LABELS = {0: "Normal", 1: "Doubtful", 2: "Mild", 3: "Moderate", 4: "Severe"}
 
 CHECKPOINT_REPO = "Darshan13/KneeVision-models"
@@ -1357,8 +1359,11 @@ def page_diagnosis(device, image_models):
     with c_model:
         model_choice = st.selectbox("Model", list(image_models.keys()) + ["Ensemble (all)"], key="diag_model_choice")
 
+    if "diag_sample_choice" not in st.session_state:
+        st.session_state["diag_sample_choice"] = None
+
     # File uploader and quick sample loader
-    c_up, c_sample = st.columns([2.5, 1.0])
+    c_up, c_sample = st.columns([2.2, 1.3])
     with c_up:
         uploaded = st.file_uploader(
             "Upload a knee radiograph",
@@ -1366,17 +1371,30 @@ def page_diagnosis(device, image_models):
             key="diagnosis_xray_upload",
         )
     with c_sample:
-        st.markdown("<div style='margin-top: 1.8rem;'></div>", unsafe_allow_html=True)
-        use_bilateral_sample = st.button("🧪 Try Bilateral Sample", help="Load sample 2-in-1 standing AP radiograph")
+        st.caption("🧪 Quick Test Samples:")
+        s_c1, s_c2 = st.columns(2)
+        with s_c1:
+            if st.button("👥 Bilateral", help="Load sample 2-in-1 standing AP radiograph"):
+                st.session_state["diag_sample_choice"] = "bilateral"
+        with s_c2:
+            if st.button("🦾 Prosthesis", help="Load knee arthroplasty / TKA prosthesis sample"):
+                st.session_state["diag_sample_choice"] = "prosthesis"
+        if st.button("🦴 Native Knee", help="Load single native knee crop"):
+            st.session_state["diag_sample_choice"] = "native"
 
     active_image = None
     if uploaded is not None:
         active_image = Image.open(uploaded).convert("RGB")
-    elif use_bilateral_sample and DEMO_BILATERAL_PATH.exists():
+        st.session_state["diag_sample_choice"] = None
+    elif st.session_state.get("diag_sample_choice") == "bilateral" and DEMO_BILATERAL_PATH.exists():
         active_image = Image.open(DEMO_BILATERAL_PATH).convert("RGB")
+    elif st.session_state.get("diag_sample_choice") == "prosthesis" and DEMO_PROSTHESIS_PATH.exists():
+        active_image = Image.open(DEMO_PROSTHESIS_PATH).convert("RGB")
+    elif st.session_state.get("diag_sample_choice") == "native" and DEMO_NATIVE_PATH.exists():
+        active_image = Image.open(DEMO_NATIVE_PATH).convert("RGB")
 
     if active_image is None:
-        st.info("Upload an X-ray above or click **Try Bilateral Sample** to start.")
+        st.info("Upload an X-ray above or click one of the **Quick Test Samples** to start.")
         return
 
     # Decide single vs bilateral
@@ -1637,22 +1655,37 @@ def page_xai(device, image_models):
     st.subheader("🔥 Explainability")
     st.caption("Grad-CAM / Score-CAM / LIME highlight where the CNN looks when deciding (DenseNet backbone).")
 
-    c_x1, c_x2 = st.columns([2.5, 1.0])
+    if "xai_sample_choice" not in st.session_state:
+        st.session_state["xai_sample_choice"] = None
+
+    c_x1, c_x2 = st.columns([2.2, 1.3])
     with c_x1:
-        xai_uploaded = st.file_uploader("Upload a knee X-ray for explanation", type=["png", "jpg", "jpeg", "bmp"],
-                                        key="xai_upload")
+        xai_uploaded = st.file_uploader(
+            "Upload a knee X-ray for explanation",
+            type=["png", "jpg", "jpeg", "bmp"],
+            key="xai_upload",
+        )
     with c_x2:
-        st.markdown("<div style='margin-top: 1.8rem;'></div>", unsafe_allow_html=True)
-        use_bilateral_xai = st.button("🧪 Try Bilateral Sample", key="xai_bilat_btn", help="Load sample 2-in-1 radiograph")
+        st.caption("🧪 Quick Test Samples:")
+        xs_c1, xs_c2 = st.columns(2)
+        with xs_c1:
+            if st.button("👥 Bilateral", key="xai_bilat_btn", help="Load sample 2-in-1 radiograph"):
+                st.session_state["xai_sample_choice"] = "bilateral"
+        with xs_c2:
+            if st.button("🦴 Single", key="xai_native_btn", help="Load single knee crop"):
+                st.session_state["xai_sample_choice"] = "native"
 
     active_xai_img = None
     if xai_uploaded is not None:
         active_xai_img = Image.open(xai_uploaded).convert("RGB")
-    elif use_bilateral_xai and DEMO_BILATERAL_PATH.exists():
+        st.session_state["xai_sample_choice"] = None
+    elif st.session_state.get("xai_sample_choice") == "bilateral" and DEMO_BILATERAL_PATH.exists():
         active_xai_img = Image.open(DEMO_BILATERAL_PATH).convert("RGB")
+    elif st.session_state.get("xai_sample_choice") == "native" and DEMO_NATIVE_PATH.exists():
+        active_xai_img = Image.open(DEMO_NATIVE_PATH).convert("RGB")
 
     if active_xai_img is None:
-        st.info("Upload an X-ray to generate heatmaps or click **Try Bilateral Sample**.")
+        st.info("Upload an X-ray to generate heatmaps or click one of the **Quick Test Samples**.")
         return
 
     # Check if bilateral
