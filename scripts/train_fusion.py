@@ -1,6 +1,9 @@
 import argparse
 import csv
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import torch
 from sklearn.metrics import accuracy_score, classification_report, cohen_kappa_score
@@ -41,6 +44,7 @@ def main():
     parser.add_argument("--ordinal", action="store_true", default=True) # Always use ordinal for KL
     parser.add_argument("--unfreeze", action="store_true")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
+    parser.add_argument("--out", type=str, default="models/best_fusion.pt", help="Fusion checkpoint output path")
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -130,7 +134,7 @@ def main():
         status = f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f} | Kappa: {val_kappa:.4f}"
         if val_kappa > best_kappa:
             best_kappa = val_kappa
-            torch.save(model.state_dict(), "models/best_fusion.pt")
+            torch.save(model.state_dict(), args.out)
             logger.info(f"Epoch {epoch:2d} | {status}  -> saved")
             patience_counter = 0
         else:
@@ -142,7 +146,7 @@ def main():
                 
     # Test
     logger.info("TESTING")
-    model.load_state_dict(torch.load("models/best_fusion.pt", weights_only=True))
+    model.load_state_dict(torch.load(args.out, weights_only=True))
     model.eval()
     all_preds, all_labels = [], []
     with torch.no_grad():

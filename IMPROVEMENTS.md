@@ -180,7 +180,7 @@ No insertion/deletion test, no localization metric against anatomical annotation
 Grounding accuracy and hallucination rate cannot be measured without a reference question-answer dataset tied to the guideline corpus.
 
 ### L6 — External Validation Dataset Not Available
-No second knee OA dataset is currently available in the repository. The infrastructure exists (all evaluation scripts take a configurable data path) but no external test set has been prepared.
+No *independent* second knee OA dataset is available. The Roboflow and Tibial Spiking exports in `data/external/` were checked on 2026-10-12 and are OAI-derived (all 1,220 Roboflow knee IDs also appear in the Kaggle set), so they must not be reported as external validation. The infrastructure exists (all evaluation scripts take a configurable data path) but no external test set has been prepared.
 
 ---
 

@@ -28,10 +28,12 @@ def get_available_image_backbones() -> tuple[str, ...]:
 @lru_cache(maxsize=1)
 def get_image_model() -> KneeXRayClassifier | None:
     device = get_device()
-    path = MODELS_DIR / "best_densenet121.pt"
-    if not path.exists():
-        return None
-    return load_trained_model(path, device, num_classes=5)
+    # Prefer the locked CORAL ordinal model; fall back to the standard baseline.
+    for name in ("best_densenet121_ordinal_ordinal_soft_mixup_a04.pt", "best_densenet121.pt"):
+        path = MODELS_DIR / name
+        if path.exists():
+            return load_trained_model(path, device, num_classes=5)
+    return None
 
 
 @lru_cache(maxsize=1)

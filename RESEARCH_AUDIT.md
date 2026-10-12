@@ -53,8 +53,8 @@ interpretation of the checkpoint status is corrected here.
 |---|---|
 | Dataset splitting (patient-level) | ✅ IMPLEMENTED correctly |
 | CORAL ordinal loss | ✅ VALIDATED — implementation and target encoding verified correct |
-| CORAL ordinal image training run | ⚠️ INCOMPLETE — interrupted after epoch 1 of 100 |
-| Ordinal loss vs Focal fairness (MixUp, class weights) | ⚠️ ASYMMETRIC — ablation not yet run |
+| CORAL ordinal image training run | ✅ COMPLETE — locked soft-CORAL+MixUp model, test QWK 0.8232 (see `reports/FINAL_KNEEVISION_RESEARCH_AUDIT.md`); the epoch-1 checkpoint below is a superseded artifact |
+| Ordinal loss vs Focal fairness (MixUp, class weights) | ✅ ABLATION RUN — Focal(no MixUp) test QWK 0.8079 vs soft-CORAL 0.7973–0.8232 across settings/seeds; no CORAL-over-Focal superiority claim is supported |
 | Auxiliary OARSI heads | ✅ IMPLEMENTED (real OAI data) |
 | Multimodal pairing (genuine) | ✅ VERIFIED — 100% match rate |
 | Fusion evaluation pipeline | ✅ IMPLEMENTED |
@@ -62,12 +62,12 @@ interpretation of the checkpoint status is corrected here.
 | RAG pipeline | ✅ IMPLEMENTED |
 | OARSI → KL label leakage | ⚠️ CRITICAL FINDING — documented below |
 | KL3/KL4 perfect scores | ⚠️ SUSPICIOUS — likely from OARSI leakage, not image learning |
-| Calibration evaluation | ❌ NOT IMPLEMENTED |
-| MAE / Within-1 / Within-2 metrics | ❌ NOT REPORTED |
+| Calibration evaluation | ✅ ECE/Brier/reliability diagram implemented (locked model ECE 0.0496) |
+| MAE / Within-1 / Within-2 metrics | ✅ REPORTED |
 | Ordinal safety metrics | ❌ NOT IN evaluate_fusion.py |
 | XAI quantitative validation | ❌ NOT IMPLEMENTED |
-| RAG retrieval evaluation | ❌ NOT IMPLEMENTED |
-| External validation dataset | ❌ NOT IMPLEMENTED |
+| RAG retrieval evaluation | ✅ IMPLEMENTED (`reports/rag_retrieval_eval*.md`, `rag_generation_eval.md`) |
+| External validation dataset | ❌ NOT AVAILABLE — Roboflow and Tibial exports are OAI-derived (same patient IDs as Kaggle), so neither is independent |
 | Reproducibility seeds | ⚠️ PARTIALLY — set_seed used in multitask, not in all scripts |
 
 ---

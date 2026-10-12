@@ -18,5 +18,5 @@ Experiment `kneevision` — completed training runs, ranked by best validation Q
 | 12 | densenet121_binary_20260822_192452 | densenet121 | binary | 0.7192 |
 | 13 | efficientnet-b4_binary_20260822_201657 | efficientnet-b4 | binary | 0.6575 |
 | 14 | efficientnet-b4_standard_20260822_210940 | efficientnet-b4 | 5-class | 0.6400 |
-| 15 | densenet121_ordinal_ordinal_soft_mixup_a04_seed123_20261002_233308 | densenet121 | ordinal | 0.5182 |
-| 16 | densenet121_ordinal_ordinal_soft_mixup_20261002_102339 | densenet121 | ordinal | 0.2609 |
+| 15 | densenet121_ordinal_ordinal_soft_mixup_a04_seed123_20261002_233308 | densenet121 | ordinal | 0.5182 (interrupted, superseded by seed-123 rerun #5) |
+| 16 | densenet121_ordinal_ordinal_soft_mixup_20261002_102339 | densenet121 | ordinal | 0.2609 (interrupted, superseded by #1/#2) |

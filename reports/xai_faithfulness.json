@@ -1,0 +1,29 @@
+{
+  "split": "val",
+  "checkpoint": "best_densenet121_ordinal_ordinal_soft_mixup_a04.pt",
+  "patch": 16,
+  "seed": 42,
+  "methods": {
+    "gradcam": {
+      "n": 100,
+      "deletion_auc_mean": 0.21686397500336171,
+      "deletion_auc_sd": 0.08663149438093899,
+      "insertion_auc_mean": 0.3569512178003788,
+      "insertion_auc_sd": 0.11471111311722972
+    },
+    "scorecam": {
+      "n": 20,
+      "deletion_auc_mean": 0.2477667137980461,
+      "deletion_auc_sd": 0.10575164534446099,
+      "insertion_auc_mean": 0.36160468980669974,
+      "insertion_auc_sd": 0.0841263240460046
+    },
+    "random": {
+      "n": 100,
+      "deletion_auc_mean": 0.23831391654908657,
+      "deletion_auc_sd": 0.13873373739797815,
+      "insertion_auc_mean": 0.23727100787684322,
+      "insertion_auc_sd": 0.1371753155151125
+    }
+  }
+}

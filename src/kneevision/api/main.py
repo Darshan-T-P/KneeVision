@@ -64,7 +64,7 @@ def models_status(
 @app.post("/predict/xray", response_model=PredictionResponse)
 def predict_xray(file: UploadFile = File(...), model=Depends(deps.get_image_model)):
     if model is None:
-        raise HTTPException(status_code=503, detail="No image checkpoint found (models/best_densenet121.pt)")
+        raise HTTPException(status_code=503, detail="No image checkpoint found in models/")
     image = _read_image(file)
     probs = predict_xray_probs(model, image, get_device())
     return probs_to_response(probs, int(probs.argmax()))
@@ -73,7 +73,7 @@ def predict_xray(file: UploadFile = File(...), model=Depends(deps.get_image_mode
 @app.post("/predict/xray/explain")
 def predict_xray_explain(file: UploadFile = File(...), method: str = Form("gradcam"), model=Depends(deps.get_image_model)):
     if model is None:
-        raise HTTPException(status_code=503, detail="No image checkpoint found (models/best_densenet121.pt)")
+        raise HTTPException(status_code=503, detail="No image checkpoint found in models/")
     image = _read_image(file)
     device = get_device()
 

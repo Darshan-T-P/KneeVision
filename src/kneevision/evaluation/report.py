@@ -268,7 +268,7 @@ def ordinal_error_plot(labels, preds, out_path: Path | None = None) -> plt.Figur
                 f"{count}\n({count/total*100:.1f}%)", ha="center", va="bottom", fontsize=9)
     ax.set_xlabel("|True KL − Predicted KL|")
     ax.set_ylabel("% of Test Cases")
-    ax.set_title("Ordinal Error Distribution (Clinical Safety)")
+    ax.set_title("Ordinal Absolute Error Distribution (|True - Predicted|)")
     ax.set_xticks(range(max_err + 1))
     within1 = sum(counts[:2]) / total * 100
     ax.axvline(x=1.5, color="red", linestyle="--", lw=1.5, label=f"Within±1: {within1:.1f}%")

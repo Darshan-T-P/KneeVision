@@ -13,7 +13,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x%20CUDA-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![FastAPI](https://img.shields.io/badge/API-FastAPI%20REST-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-61DAFB?logo=react&logoColor=black)](https://vitejs.dev/)
-[![Tests](https://img.shields.io/badge/Tests-268%20Passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-322%20Passed-brightgreen)](tests/)
 
 ---
 
@@ -44,7 +44,7 @@ The system integrates:
 | **📊 Kaggle Knee OA Dataset** | 8,260 plain knee radiographs across 5 KL grades (Train/Val/Test splits) | [kaggle.com/datasets/tommyngx/knee-osteoarthritis-dataset-with-severity](https://www.kaggle.com/datasets/tommyngx/knee-osteoarthritis-dataset-with-severity) |
 | **🏥 NIH NIMH Data Archive (NDA)** | Osteoarthritis Initiative (OAI) clinical tables (`kxr_sq_bu00.txt`, `AllClinical00.txt`) | [nda.nih.gov/oai](https://nda.nih.gov/oai) |
 | **📑 IEEE DataPort Reports** | Expert-annotated radiology reports for Knee OAI dataset (DOI: 10.21227/vcpg-qm58) | [doi.org/10.21227/vcpg-qm58](https://doi.org/10.21227/vcpg-qm58) |
-| **🔍 Roboflow Universe** | External generalization test cohort (1,965 images, CC BY 4.0) | [universe.roboflow.com/srm-zubpb/knee-oa-detection](https://universe.roboflow.com/srm-zubpb/knee-oa-detection) |
+| **🔍 Roboflow Universe** | Re-export of OAI knee radiographs (1,965 images, CC BY 4.0); **not independent** of the Kaggle set | [universe.roboflow.com/srm-zubpb/knee-oa-detection](https://universe.roboflow.com/srm-zubpb/knee-oa-detection) |
 | **🦴 Mendeley Data** | Tibial Spiking Knee OA Dataset (DOI: 10.17632/6gbptmgp3y.1) | [doi.org/10.17632/6gbptmgp3y.1](https://doi.org/10.17632/6gbptmgp3y.1) |
 | **🩺 BioClinicalBERT** | Pre-trained clinical language model on Hugging Face | [huggingface.co/emilyalsentzer/Bio_ClinicalBERT](https://huggingface.co/emilyalsentzer/Bio_ClinicalBERT) |
 | **🦙 Meta Llama 3.2 1B (Ollama)** | Local quantized LLM for guideline-grounded rehabilitation generation | [ollama.com/library/llama3.2](https://ollama.com/library/llama3.2) |
@@ -88,6 +88,10 @@ Evaluated on the frozen, patient-isolated held-out test split (828 unique patien
 
 *Checkpoint SHA256:* `c639bd883715637d578d73898116089283c19c0f8b4e30d9bcd51f8d75939f68` (Epoch 25, selected solely on validation QWK 0.8009).
 
+### 1b. Seed Robustness (4 seeds, held-out test set)
+
+Soft CORAL + MixUp 0.4: test QWK **0.8163 ± 0.0128** (seeds 42/7/123/2024 = 0.8232/0.8202/0.7973/0.8244), validation QWK 0.7994 ± 0.0037. Focal (no MixUp), 2 seeds: test QWK 0.7970 ± 0.0153. The locked checkpoint is seed 42. CORAL's advantage over Focal is suggestive, not conclusive (Focal n=2). Full tables: [`reports/SEED_ROBUSTNESS.md`](reports/SEED_ROBUSTNESS.md).
+
 ### 2. Test Confusion Matrix & Error Topology
 
 ```
@@ -119,6 +123,8 @@ Derived via post-hoc linear re-aggregation of the frozen test confusion matrix (
 
 ### 4. Multimodal Fusion Benchmark
 
+> Retraining fusion on the locked CORAL image encoder (`models/best_fusion_coral.pt`) gave accuracy 88.71% / QWK 0.9579 vs 88.89% / 0.9586 for the original fusion model, i.e. no meaningful change; the text branch dominates.
+
 | Modality / Architecture | Exact Accuracy | Quadratic Weighted Kappa (QWK) |
 | :--- | :---: | :---: |
 | **Image Only (DenseNet121)** | 60.3% | 0.792 |
@@ -141,14 +147,16 @@ KneeVision++ synthesizes multiple public medical imaging, clinical tabular, narr
   - **Scope:** 8,260 high-resolution plain knee radiographs across 5 Kellgren–Lawrence grades (KL 0 to 4).
   - **Splits:** Train ($N = 5,778$), Validation ($N = 826$), Held-out Test ($N = 1,656$).
   - **Validation & Sanctity:** Strict patient-level separation verified via filename prefix matching ($0$ shared patients across any split). Unpacked from `data/archive.zip` to `data/raw/{train,val,test}/{kl_grade}/*.png`.
-- **External Generalization Cohort — Roboflow Knee OA Detection:**
+- **Roboflow Knee OA Detection (NOT an external cohort):**
   - **Direct URL:** [https://universe.roboflow.com/srm-zubpb/knee-oa-detection](https://universe.roboflow.com/srm-zubpb/knee-oa-detection)
   - **Scope:** 1,965 annotated knee radiographs exported under CC BY 4.0.
-  - **Use Case:** Independent external generalization audit executed via [`scripts/evaluate_external.py`](file:///home/darshan/Projects/Research/KneeVision/scripts/evaluate_external.py).
+  - **Audit finding (2026-10-12):** all 1,220 distinct knee IDs in the Roboflow export also appear in the Kaggle/OAI set (resized copies), so evaluating on it would measure training-set overlap, not generalization. No result from it is reported.
+  - **Use Case:** Only usable via [`scripts/evaluate_external.py`](scripts/evaluate_external.py) once a genuinely independent cohort (e.g. MOST, CHECK) is supplied.
 - **Tibial Spiking Knee OA Dataset (Mendeley Data):**
   - **Direct DOI URL:** [https://doi.org/10.17632/6gbptmgp3y.1](https://doi.org/10.17632/6gbptmgp3y.1)
   - **Mendeley Data Portal:** [https://data.mendeley.com/datasets/6gbptmgp3y/1](https://data.mendeley.com/datasets/6gbptmgp3y/1)
   - **Citation:** Marko Moilanen, Tommi Grönholm, Juha Paloneva, Sami Äyrämö, *"Tibial Spiking Knee OA Dataset"*, Mendeley Data, V1, 2024.
+  - **Audit note:** file names carry OAI patient IDs (e.g. `9398120L`), so this is also OAI-derived and not an external cohort.
   - **Clinical Focus:** High-resolution plain radiograph crops of the tibial intercondylar eminence (tibial spine elongation), evaluated as a sensitive structural marker for early knee osteoarthritis progression.
 
 ### 2. Clinical Assessment & Radiographic Readings
@@ -199,7 +207,7 @@ flowchart TB
         DS_OAI["NIH / NDA OAI Cohort<br/>(kxr_sq_bu00 & AllClinical00)"]
         DS_Reports["IEEE DataPort Narrative Reports<br/>(DOI: 10.21227/vcpg-qm58)"]
         DS_Guidelines["Clinical Practice Guidelines<br/>(OARSI 2019, AAOS 2021, ACR/AF, CDC)"]
-        DS_Ext["External Validation Cohorts<br/>(Roboflow CC BY 4.0 & Mendeley Tibial Spiking)"]
+        DS_Ext["Candidate External Cohorts (none yet independent of OAI)<br/>(Roboflow & Tibial are OAI-derived)"]
     end
 
     %% Subgraph 2: Preprocessing & Alignment
@@ -424,9 +432,9 @@ uv run python scripts/train_fusion.py --epochs 15 --seed 42
 uv run python scripts/evaluate_ordinal_test.py \
     --checkpoint models/best_densenet121_ordinal_ordinal_soft_mixup_a04.pt
 
-# Evaluate external generalization on Roboflow dataset
+# Evaluate on an independent external cohort (NOT the Roboflow/Tibial exports: they are OAI-derived)
 uv run python scripts/evaluate_external.py \
-    --root data/external/roboflow \
+    --root data/external/<independent_cohort> \
     --checkpoint models/best_densenet121_ordinal_ordinal_soft_mixup_a04.pt
 
 # Evaluate Multimodal Fusion vs. Image and Clinical Text baselines

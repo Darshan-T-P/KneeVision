@@ -53,14 +53,16 @@ The table below reconstructs the full experimental progression. All values are s
 | Experiment | Configuration Details | Seed | Best Epoch | Val QWK | Val MAE | Val Within-1 | Val Acc | Test QWK | Test MAE | Test Within-1 | Test Acc | Macro-F1 (Val) | Status |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Baseline CORAL** | CORAL + Hard Target MixUp | 42 | 23 | 0.7785 | 0.4661 | 95.76% | 57.75% | 0.7798 | 0.4577 | 95.65% | 58.64% | 0.5630 | Reconstructed Baseline |
-| **Focal (No MixUp)** | Standard Multi-class Focal Loss | 42 | 28 | 0.7831 | 0.4467 | 93.46% | 62.59% | N/A | N/A | N/A | N/A | 0.6262 | Ablation Cell |
-| **Focal (+ MixUp)** | Focal Loss + MixUp ($\alpha=0.2$) | 42 | 45 | 0.7753 | 0.4734 | 96.85% | 56.05% | N/A | N/A | N/A | N/A | 0.5913 | Ablation Cell |
-| **Soft CORAL (No MixUp)** | Soft Ordinal Targets, No MixUp | 42 | 11 | 0.7722 | 0.4697 | 94.92% | 58.23% | N/A | N/A | N/A | N/A | 0.5638 | Ablation Cell |
-| **Soft CORAL (MixUp $\alpha=0.2$)** | Soft Ordinal Targets + MixUp $\alpha=0.2$ | 42 | 33 | 0.7971 | 0.4262 | 95.04% | 62.47% | N/A | N/A | N/A | N/A | 0.6143 | Ablation Cell |
+| **Focal (No MixUp)** | Standard Multi-class Focal Loss | 42 | 28 | 0.7831 | 0.4467 | 93.46% | 62.59% | 0.8079 | 0.4203 | 94.38% | 63.65% | 0.6262 | Ablation Cell |
+| **Focal (+ MixUp)** | Focal Loss + MixUp ($\alpha=0.2$) | 42 | 45 | 0.7753 | 0.4734 | 96.85% | 56.05% | 0.7991 | 0.4360 | 96.98% | 59.48% | 0.5913 | Ablation Cell |
+| **Soft CORAL (No MixUp)** | Soft Ordinal Targets, No MixUp | 42 | 11 | 0.7722 | 0.4697 | 94.92% | 58.23% | 0.7806 | 0.4571 | 95.11% | 59.24% | 0.5638 | Ablation Cell |
+| **Soft CORAL (MixUp $\alpha=0.2$)** | Soft Ordinal Targets + MixUp $\alpha=0.2$ | 42 | 33 | 0.7971 | 0.4262 | 95.04% | 62.47% | 0.8105 | 0.4124 | 96.01% | 62.80% | 0.6143 | Ablation Cell |
 | **Soft CORAL (MixUp $\alpha=0.4$)** | Soft Ordinal Targets + MixUp $\alpha=0.4$ | 42 | 25 | **0.8009** | **0.4298** | **96.13%** | **61.02%** | **0.8232** | **0.3925** | **96.92%** | **63.83%** | **0.6271** | **Locked Final Model** |
-| **Soft CORAL (Seed 123)** | Locked Config with Seed 123 | 123 | 32 | 0.7945 | 0.4334 | 96.13% | 60.53% | N/A | N/A | N/A | N/A | 0.5842 | Robustness Run |
+| **Soft CORAL (Seed 123)** | Locked Config with Seed 123 | 123 | 32 | 0.7945 | 0.4334 | 96.13% | 60.53% | 0.7973 | 0.4336 | 96.20% | 60.51% | 0.5842 | Robustness Run |
 
-*Note: In accordance with clinical trial and machine learning audit standards, non-final exploratory models were held out from test evaluation to preserve test set sanctity.*
+*Note (corrected 2026-10-12): the non-final ablation cells were test-evaluated after the final model was locked on validation QWK (`reports/test_evals/`); the table now shows those numbers. They were not used for selection.*
+
+> **Claim caveat.** On test, Soft CORAL (MixUp α=0.2) scores QWK 0.8105 and Focal (No MixUp) 0.8079, close to the locked model's 0.8232, and the seed-123 replicate of the locked configuration scores 0.7973. The seed-to-seed test spread (0.026) exceeds the 95% bootstrap CI half-width (~0.018). The evidence supports soft targets over hard targets under MixUp; it does **not** support a claim that CORAL outperforms Focal.
 
 ---
 
@@ -111,8 +113,18 @@ To evaluate sensitivity to stochastic optimization and data loader ordering, an 
 | **Validation Exact Acc** | 61.02% | 60.53% | **60.78%** | 0.49% | 0.35% | [60.53%, 61.02%] |
 | **Best Epoch** | 25 | 32 | 28.5 | 7 epochs | 4.95 | [25, 32] |
 
+### Update 2026-10-13: four-seed replication (see `reports/SEED_ROBUSTNESS.md`)
+Two further seeds (7, 2024) and a second Focal seed were trained and test-evaluated once each (all values read from the per-run JSONs).
+
+| Configuration | n seeds | Val QWK (mean ± SD) | Test QWK (mean ± SD) | Test MAE | Test Within-1 |
+|---|---|---|---|---|---|
+| Soft CORAL + MixUp 0.4 | 4 | 0.7994 ± 0.0037 | **0.8163 ± 0.0128** | 0.4078 ± 0.0180 | 96.07 ± 1.13% |
+| Focal, no MixUp | 2 | 0.7766 ± 0.0091 | 0.7970 ± 0.0153 | 0.4369 ± 0.0235 | 94.84 ± 0.64% |
+
+The locked model (seed 42, test QWK 0.8232) is at the upper end of its seed distribution; the honest headline is the 4-seed mean 0.816 ± 0.013. CORAL exceeds Focal on every validation seed and by ~0.02 test QWK, but Focal has only two seeds and the gap is about one SD, so this is suggestive, not conclusive.
+
 ### Interpretation & Scope of Claims
-- **What this demonstrates:** The locked soft MixUp formulation displays high stability across independent pseudorandom seeds, with QWK varying by less than $0.007$ and Within-1 accuracy replicating identically to two decimal places ($96.13\%$).
+- **What this demonstrates:** The locked soft MixUp formulation displays high stability across independent pseudorandom seeds, with validation QWK varying by less than $0.007$ (test QWK: 0.8232 vs 0.7973) and Within-1 accuracy replicating identically to two decimal places ($96.13\%$).
 - **What this does NOT demonstrate:** Evaluating two seeds does not constitute formal statistical proof of invariance or universal robustness across different hardware, architectures, or external clinical distributions. It provides preliminary evidence of internal training stability.
 
 ---
@@ -260,7 +272,7 @@ The KneeVision++ system has specific technical and methodological boundaries tha
 3. **Severe Class Imbalance in End-Stage OA:** Grade 4 osteoarthritis represents only 3.08% of the test cohort, limiting statistical power regarding severe joint collapse.
 4. **Definitional Co-occurrence in Multimodal Fusion:** The text branch utilizes structured OARSI reads (JSN, osteophytes) which represent the direct definitional components of KL grading. Multimodal fusion performance must not be conflated with free-form clinical narrative analysis.
 5. **Lack of Prospective Clinical Workflow Validation:** The system has not been evaluated in a silent-mode trial or prospective reader study to assess real-world radiologist interaction, alert fatigue, or diagnostic impact.
-6. **Quantitative XAI Validation Missing:** While Grad-CAM, Score-CAM, and LIME produce visually plausible joint space attention, quantitative sanity benchmarks (pixel deletion/insertion curves, anatomical bounding-box hit rates) remain unmeasured.
+6. **XAI Validation (partial, added 2026-10-13):** `reports/xai_faithfulness.json` (validation split): insertion AUC Grad-CAM 0.357 (n=100), Score-CAM 0.362 (n=20) vs random 0.237; deletion AUC 0.217 / 0.248 vs random 0.238, so deletion faithfulness is only marginally better than chance. LIME and anatomical localization are not evaluated.
 7. **RAG Grounding & Hallucination Metrics Missing:** The rehab guideline assistant lacks formalized Precision@K, retrieval recall, and clinical guideline faithfulness benchmarks against curated clinical QA pairs.
 8. **External Multi-Cohort Validation Missing:** No second independent clinical cohort (such as the MOST or CHECK datasets) was evaluated to measure domain adaptation across acquisition sites and scanner hardware.
 9. **Working Tree Provenance:** Model checkpoints record commit state `75da54d-dirty` because experiments were run with uncommitted audit and training scripts. A formal git commit is required to achieve clean hash provenance.
@@ -374,7 +386,7 @@ All publication figures are generated at publication resolution (300 DPI) via `s
 | **Final Test Evaluation** | **PASS** | Evaluated once on untouched test split; SHA-256 byte-identical | None. Benchmark established. |
 | **Statistical Analysis** | **PASS** | Clustered patient-level bootstrap ($B=1,000$, seed 42) via `scripts/patient_cluster_bootstrap.py` on real predictions CSV; QWK 95% CI: [0.8036, 0.8398], MAE 95% CI: [0.3641, 0.4215]. | Include 95% CIs in final paper tables. |
 | **Error Analysis** | **PASS** | 100% within $\pm 2$, zero extreme errors, asymmetry documented | Disclose KL3 $\rightarrow$ KL2 under-grading in discussion. |
-| **Reproducibility** | **PASS** | `uv.lock`, MLflow run `fed2677f1ffc4738b435e834e82ec7a7` intact; working tree committed. | Maintain frozen commit hash in paper provenance. |
+| **Reproducibility** | **PASS (provenance pending)** | `uv.lock`, MLflow run `fed2677f1ffc4738b435e834e82ec7a7` intact; checkpoints record `75da54d-dirty`, so a clean commit hash must be added. | Maintain frozen commit hash in paper provenance. |
 | **Research Claims** | **PASS (Adjusted)**| Replaced "clinical safety" with "ordinal error bounds" | Adopt sanitized terminology in manuscript. |
 | **Limitations Disclosure** | **PASS** | Single cohort, KL1/KL3 ambiguity, unstarted XAI/RAG/external benchmarks documented | Include limitation section in full in manuscript. |
 | **Publication Readiness**| **APPROVED** | High technical rigor, evidence-backed findings, zero test leakage, real cluster bootstrap validated | Proceed to manuscript compilation. |
