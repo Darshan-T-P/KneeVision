@@ -27,7 +27,7 @@ from torch.utils.data import DataLoader
 
 from kneevision.config.settings import PROJECT_ROOT
 from kneevision.data.dataset import KneeXRayDataset
-from kneevision.data.transforms import val_transform
+from kneevision.data.transforms import build_val_transform, val_transform
 from kneevision.models.image_model import load_trained_model
 from kneevision.training.losses import ordinal_to_probs
 from kneevision.utils.helpers import get_device, set_seed
@@ -43,13 +43,18 @@ MODELS = {
     "EfficientNet-B4 CORAL": ["best_efficientnet-b4_ordinal_ordinal_soft_mixup_a04"],
     "Swin-T CORAL": ["best_swin_t_ordinal_ordinal_soft_mixup_a04"],
 }
+TIER_B = {  # 40-epoch schedule, soft CORAL + MixUp 0.4; base = default pipeline, robust = domain-robust aug + per-image standardization
+    "short-schedule baseline (DenseNet121)": [f"best_densenet121_ordinal_short40_base_seed{s}" for s in (42, 7)],
+    "domain-robust training (DenseNet121)": [f"best_densenet121_ordinal_short40_robust_seed{s}" for s in (42, 7)],
+}
 GRID = np.linspace(-4, 4, 33)
 
 
-def loader(items, device):
+def loader(items, device, robust=False):
+    tf = build_val_transform(robust=True) if robust else val_transform
     paths = [str(PROJECT_ROOT / p) for p, _ in items]
     labels = [g for _, g in items]
-    return DataLoader(KneeXRayDataset(paths, labels, val_transform), batch_size=32, shuffle=False, num_workers=4), np.array(labels)
+    return DataLoader(KneeXRayDataset(paths, labels, tf), batch_size=32, shuffle=False, num_workers=4), np.array(labels)
 
 
 @torch.inference_mode()
@@ -112,16 +117,21 @@ def metrics(y, p, probs=None, ci=False):
 
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--tier-b", action="store_true", help="evaluate the Tier-B models instead of the Tier-A set")
+    args = ap.parse_args()
+    models = TIER_B if args.tier_b else MODELS
     set_seed(42)
     device = get_device()
     split = json.loads((PROJECT_ROOT / "reports" / "external_gornale_split.json").read_text())
-    dl_dev, y_dev = loader(split["dev"], device)
-    dl_test, y_test = loader(split["test"], device)
+    loaders = {r: (loader(split["dev"], device, r), loader(split["test"], device, r)) for r in (False, True)}
     results = {}
-    for group, names in MODELS.items():
+    for group, names in models.items():
         for name in names:
             if not (M / f"{name}.pt").exists():
                 print("missing", name); continue
+            (dl_dev, y_dev), (dl_test, y_test) = loaders["robust" in name]
             model = load_trained_model(M / f"{name}.pt", device, num_classes=5).to(device).eval()
             ordinal = bool(getattr(model, "ordinal", False))
             R = {"group": group}
@@ -163,7 +173,7 @@ def main():
             del model, ada
             torch.cuda.empty_cache()
 
-    out = PROJECT_ROOT / "reports" / "external_adapt"
+    out = PROJECT_ROOT / "reports" / ("external_adapt_tierb" if args.tier_b else "external_adapt")
     out.mkdir(exist_ok=True)
     (out / "results.json").write_text(json.dumps(results, indent=1))
 
@@ -173,7 +183,7 @@ def main():
          "Mean ± SD over seeds (single run when n=1). 'n/a' = method not applicable (no BatchNorm / non-ordinal).", ""]
     for key, title in (("qwk", "QWK"), ("acc", "Accuracy"), ("bin_acc", "Binary accuracy (KL>=2)"), ("spec", "Specificity (binary)"), ("sens", "Sensitivity (binary)")):
         L += [f"## {title}", "", "| Group | n | " + " | ".join(methods) + " |", "|---|---|" + "---|" * len(methods)]
-        for group in MODELS:
+        for group in models:
             rs = [r for r in results.values() if r["group"] == group]
             if not rs:
                 continue

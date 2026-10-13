@@ -38,3 +38,13 @@ def test_unknown_name_rejected():
 def test_transforms_accept_preprocess(name):
     assert build_val_transform(preprocess=name)(_img()).shape == (3, 224, 224)
     assert build_train_transform(preprocess=name)(_img()).shape == (3, 224, 224)
+
+
+def test_robust_transforms_shapes_and_per_image_standardization():
+    import torch
+
+    v = build_val_transform(robust=True)(_img())
+    assert v.shape == (3, 224, 224) and abs(v.mean().item()) < 1e-4 and abs(v.std().item() - 1) < 1e-3
+    for _ in range(5):
+        assert build_train_transform(robust=True)(_img()).shape == (3, 224, 224)
+    assert torch.isfinite(build_train_transform(robust=True)(_img())).all()

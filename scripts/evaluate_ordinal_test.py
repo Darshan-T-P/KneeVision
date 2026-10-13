@@ -73,6 +73,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT, help="Path to model checkpoint")
     parser.add_argument("--preprocess", choices=PREPROCESS_CHOICES, default="none",
                         help="must match the preprocessing the checkpoint was trained with")
+    parser.add_argument("--robust-aug", action="store_true", help="checkpoint was trained with --robust-aug (per-image standardization)")
     parser.add_argument("--tag", type=str, default=None, help="Identifier tag for this evaluation")
     parser.add_argument("--source-run-id", type=str, default=None, help="MLflow source training run ID to associate with")
     parser.add_argument("--out-md", type=Path, default=None, help="Path to write markdown evaluation report")
@@ -132,7 +133,7 @@ def main() -> None:
 
     test_paths, test_labels = get_paths_and_labels(RAW_DATA_DIR / "test")
     test_ds = KneeXRayDataset(test_paths, test_labels,
-                              build_val_transform(preprocess=args.preprocess) if args.preprocess != "none" else val_transform)
+                              build_val_transform(preprocess=args.preprocess, robust=args.robust_aug) if (args.preprocess != "none" or args.robust_aug) else val_transform)
     test_loader = DataLoader(test_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
 
     assert len(test_paths) == EXPECTED_SAMPLES, f"expected {EXPECTED_SAMPLES} test samples, got {len(test_paths)}"

@@ -118,7 +118,7 @@ def build_provenance(*, model_name: str, ordinal: bool, binary: bool,
                      patience: int, seed: int, device,
                      use_mixup_alpha: float, soft_targets: bool,
                      class_weights_enabled: bool, use_label_smoothing: float,
-                     tag: str, preprocess: str = "none") -> dict:
+                     tag: str, preprocess: str = "none", robust_aug: bool = False) -> dict:
     """The experiment/config/environment record written into every checkpoint."""
     return {
         "experiment": f"{model_name}_{('ordinal' if ordinal else 'binary' if binary else 'standard')}",
@@ -139,6 +139,7 @@ def build_provenance(*, model_name: str, ordinal: bool, binary: bool,
         "class_weights": class_weights_enabled if not ordinal else None,
         "soft_targets": soft_targets,
         "preprocess": preprocess,
+        "robust_aug": robust_aug,
         "tag": tag or None,
         "criterion": (
             f"OrdinalLoss(alpha=None, soft_targets={soft_targets})" if ordinal
@@ -167,7 +168,7 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False,
         seed: int = SEED, num_workers: int = NUM_WORKERS,
         soft_targets: bool = False, mixup_alpha: float | None = None,
         class_weights: float | None = None, label_smoothing: float | None = None,
-        tag: str = "", preprocess: str = "none"):
+        tag: str = "", preprocess: str = "none", robust_aug: bool = False):
     num_classes = 2 if binary else NUM_KL_CLASSES
     mode = "Binary" if binary else ("Ordinal" if ordinal else "Standard")
     run_name = f"{model_name}_{mode.lower()}{('_' + tag) if tag else ''}_{time.strftime('%Y%m%d_%H%M%S')}"
@@ -193,7 +194,7 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False,
         patience=patience, seed=seed, device=device,
         use_mixup_alpha=use_mixup_alpha, soft_targets=soft_targets,
         class_weights_enabled=class_weights_enabled,
-        use_label_smoothing=use_label_smoothing, tag=tag, preprocess=preprocess,
+        use_label_smoothing=use_label_smoothing, tag=tag, preprocess=preprocess, robust_aug=robust_aug,
     )
 
     if MLFLOW_ENABLED:
@@ -217,10 +218,10 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False,
 
     minority_set = minority_labels(train_labels, num_classes=num_classes)
 
-    if preprocess != "none":  # opt-in: identical preprocessing for train and eval
-        train_tf, minority_tf, val_tf = (build_train_transform(preprocess=preprocess),
-                                         build_minority_transform(preprocess=preprocess),
-                                         build_val_transform(preprocess=preprocess))
+    if preprocess != "none" or robust_aug:  # opt-in: identical preprocessing/normalization for train and eval
+        train_tf, minority_tf, val_tf = (build_train_transform(preprocess=preprocess, robust=robust_aug),
+                                         build_minority_transform(preprocess=preprocess, robust=robust_aug),
+                                         build_val_transform(preprocess=preprocess, robust=robust_aug))
     else:
         train_tf, minority_tf, val_tf = train_transform, minority_transform, val_transform
     train_ds = KneeXRayDataset(
@@ -448,6 +449,8 @@ if __name__ == "__main__":
                         help="Focal only: label smoothing in [0, 1) (default: %(default)s = current 0.1)")
     parser.add_argument("--preprocess", choices=PREPROCESS_CHOICES, default="none",
                         help="opt-in radiograph preprocessing applied at train AND eval time (default: none)")
+    parser.add_argument("--robust-aug", action="store_true",
+                        help="domain-robust augmentation (aspect/resolution/gamma/noise) + per-image standardization, train AND eval")
     parser.add_argument("--tag", type=str, default="", metavar="NAME",
                         help="isolate all artifacts under this tag, e.g. '--tag focal_mixup' "
                              "writes best_densenet121_focal_mixup.pt")
@@ -468,7 +471,7 @@ if __name__ == "__main__":
             seed=args.seed, num_workers=args.num_workers,
             soft_targets=args.soft_ordinal_targets, mixup_alpha=args.mixup_alpha,
             class_weights=args.class_weights, label_smoothing=args.label_smoothing,
-            tag=args.tag, preprocess=args.preprocess)
+            tag=args.tag, preprocess=args.preprocess, robust_aug=args.robust_aug)
         results.append((name, params, kappa, t))
 
     logger.info("=" * 60)

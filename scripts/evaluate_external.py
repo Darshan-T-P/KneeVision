@@ -91,6 +91,7 @@ def main() -> None:
     ap.add_argument("--out-json", type=Path, default=None)
     ap.add_argument("--preprocess", choices=PREPROCESS_CHOICES, default="none",
                     help="must match the preprocessing the checkpoint was trained with")
+    ap.add_argument("--robust-aug", action="store_true", help="checkpoint was trained with --robust-aug")
     ap.add_argument("--pad-square", action="store_true",
                     help="letterbox each image to a square (median-intensity padding) before the usual resize, "
                          "instead of stretching non-square images")
@@ -116,7 +117,7 @@ def main() -> None:
         raise SystemExit("Checkpoint is not ordinal; pass --allow-non-ordinal to evaluate it.")
     model.eval()
 
-    transform = build_val_transform(preprocess=args.preprocess) if args.preprocess != "none" else val_transform
+    transform = build_val_transform(preprocess=args.preprocess, robust=args.robust_aug) if (args.preprocess != "none" or args.robust_aug) else val_transform
     if args.pad_square:
         from PIL import Image as _Image
         from torchvision import transforms as _T
