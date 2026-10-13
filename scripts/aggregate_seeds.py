@@ -21,6 +21,7 @@ GROUPS = {
     "Focal, no MixUp": [
         (M / "best_densenet121_focal_nomixup.json", T / "best_densenet121_focal_nomixup.test.json"),
         (M / "best_densenet121_focal_nomixup_seed123.json", T / "best_densenet121_focal_nomixup_seed123.test.json"),
+        (M / "best_densenet121_focal_nomixup_seed7.json", T / "best_densenet121_focal_nomixup_seed7.test.json"),
     ],
 }
 

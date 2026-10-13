@@ -25,6 +25,7 @@ from kneevision.models.image_model import load_trained_model
 from kneevision.training.losses import ordinal_to_class, ordinal_to_probs
 from kneevision.utils.helpers import get_device, set_seed
 from kneevision.xai.gradcam import GradCAM
+from kneevision.xai.lime import explain as lime_explain
 from kneevision.xai.scorecam import ScoreCAM
 
 PATCH = 16
@@ -72,6 +73,7 @@ def main():
     ap.add_argument("--checkpoint", default=str(MODELS_DIR / "best_densenet121_ordinal_ordinal_soft_mixup_a04.pt"))
     ap.add_argument("--n", type=int, default=100, help="images for Grad-CAM/random (val split, stratified)")
     ap.add_argument("--scorecam-n", type=int, default=20, help="subset for the slow Score-CAM")
+    ap.add_argument("--lime-n", type=int, default=0, help="subset for LIME (500 perturbations each; slow)")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--out-json", default=str(PROJECT_ROOT / "reports" / "xai_faithfulness.json"))
     args = ap.parse_args()
@@ -89,7 +91,7 @@ def main():
 
     gc = GradCAM(model)
     sc = ScoreCAM(model)
-    res = {"gradcam": [], "scorecam": [], "random": []}
+    res = {"gradcam": [], "scorecam": [], "lime": [], "random": []}
     for i, p in enumerate(paths):
         x = val_transform(Image.open(p).convert("RGB")).unsqueeze(0).to(device)
         with torch.inference_mode():
@@ -102,6 +104,9 @@ def main():
         }
         if i % max(1, len(paths) // max(1, args.scorecam_n)) == 0 and len(res["scorecam"]) < args.scorecam_n:
             methods["scorecam"] = sc.generate(x.clone(), class_idx=cls)
+        if i % max(1, len(paths) // max(1, args.lime_n)) == 0 and len(res["lime"]) < args.lime_n:
+            _, _, imp, _ = lime_explain(model, Image.open(p).convert("RGB"), val_transform, device)
+            methods["lime"] = np.asarray(imp)
         for name, cam in methods.items():
             d, ins = _curves(model, x, cls, _patch_order(cam))
             res[name].append((_auc(d), _auc(ins)))
@@ -109,6 +114,8 @@ def main():
 
     out = {"split": "val", "checkpoint": Path(args.checkpoint).name, "patch": PATCH, "seed": args.seed, "methods": {}}
     for name, v in res.items():
+        if not v:
+            continue
         a = np.array(v)
         out["methods"][name] = {
             "n": len(a),

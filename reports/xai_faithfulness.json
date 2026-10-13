@@ -18,6 +18,13 @@
       "insertion_auc_mean": 0.36160468980669974,
       "insertion_auc_sd": 0.0841263240460046
     },
+    "lime": {
+      "n": 30,
+      "deletion_auc_mean": 0.25886230741937954,
+      "deletion_auc_sd": 0.09830532348918475,
+      "insertion_auc_mean": 0.2928130308787028,
+      "insertion_auc_sd": 0.1192267273053362
+    },
     "random": {
       "n": 100,
       "deletion_auc_mean": 0.23831391654908657,

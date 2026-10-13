@@ -114,14 +114,14 @@ To evaluate sensitivity to stochastic optimization and data loader ordering, an 
 | **Best Epoch** | 25 | 32 | 28.5 | 7 epochs | 4.95 | [25, 32] |
 
 ### Update 2026-10-13: four-seed replication (see `reports/SEED_ROBUSTNESS.md`)
-Two further seeds (7, 2024) and a second Focal seed were trained and test-evaluated once each (all values read from the per-run JSONs).
+Two further CORAL seeds (7, 2024) and two further Focal seeds (123, 7) were trained and test-evaluated once each (all values read from the per-run JSONs).
 
 | Configuration | n seeds | Val QWK (mean ± SD) | Test QWK (mean ± SD) | Test MAE | Test Within-1 |
 |---|---|---|---|---|---|
 | Soft CORAL + MixUp 0.4 | 4 | 0.7994 ± 0.0037 | **0.8163 ± 0.0128** | 0.4078 ± 0.0180 | 96.07 ± 1.13% |
-| Focal, no MixUp | 2 | 0.7766 ± 0.0091 | 0.7970 ± 0.0153 | 0.4369 ± 0.0235 | 94.84 ± 0.64% |
+| Focal, no MixUp | 3 | 0.7781 ± 0.0069 | 0.7853 ± 0.0230 | 0.4565 ± 0.0378 | 95.49 ± 1.22% |
 
-The locked model (seed 42, test QWK 0.8232) is at the upper end of its seed distribution; the honest headline is the 4-seed mean 0.816 ± 0.013. CORAL exceeds Focal on every validation seed and by ~0.02 test QWK, but Focal has only two seeds and the gap is about one SD, so this is suggestive, not conclusive.
+The locked model (seed 42, test QWK 0.8232) is at the upper end of its seed distribution; the honest headline is the 4-seed mean 0.816 ± 0.013. CORAL exceeds Focal on every validation seed and by ~0.031 test QWK, with lower seed-to-seed variance (SD 0.013 vs 0.023). One CORAL seed (123, 0.7973) is below the best Focal seed (42, 0.8079) and Focal has only three seeds, so this is supportive evidence, not a proven difference; no significance test was run.
 
 ### Interpretation & Scope of Claims
 - **What this demonstrates:** The locked soft MixUp formulation displays high stability across independent pseudorandom seeds, with validation QWK varying by less than $0.007$ (test QWK: 0.8232 vs 0.7973) and Within-1 accuracy replicating identically to two decimal places ($96.13\%$).
@@ -272,7 +272,7 @@ The KneeVision++ system has specific technical and methodological boundaries tha
 3. **Severe Class Imbalance in End-Stage OA:** Grade 4 osteoarthritis represents only 3.08% of the test cohort, limiting statistical power regarding severe joint collapse.
 4. **Definitional Co-occurrence in Multimodal Fusion:** The text branch utilizes structured OARSI reads (JSN, osteophytes) which represent the direct definitional components of KL grading. Multimodal fusion performance must not be conflated with free-form clinical narrative analysis.
 5. **Lack of Prospective Clinical Workflow Validation:** The system has not been evaluated in a silent-mode trial or prospective reader study to assess real-world radiologist interaction, alert fatigue, or diagnostic impact.
-6. **XAI Validation (partial, added 2026-10-13):** `reports/xai_faithfulness.json` (validation split): insertion AUC Grad-CAM 0.357 (n=100), Score-CAM 0.362 (n=20) vs random 0.237; deletion AUC 0.217 / 0.248 vs random 0.238, so deletion faithfulness is only marginally better than chance. LIME and anatomical localization are not evaluated.
+6. **XAI Validation (partial, added 2026-10-13):** `reports/xai_faithfulness.json` (validation split): insertion AUC Grad-CAM 0.357 (n=100), Score-CAM 0.362 (n=20), LIME 0.293 (n=30) vs random 0.237; deletion AUC 0.217 / 0.248 / 0.259 vs random 0.238 (lower is better). Insertion is clearly above chance for all three; deletion is only marginally better than chance for Grad-CAM and not better for Score-CAM or LIME (small n; per-image SD ~0.09-0.14). Anatomical localization is not evaluated.
 7. **RAG Grounding & Hallucination Metrics Missing:** The rehab guideline assistant lacks formalized Precision@K, retrieval recall, and clinical guideline faithfulness benchmarks against curated clinical QA pairs.
 8. **External Multi-Cohort Validation Missing:** No second independent clinical cohort (such as the MOST or CHECK datasets) was evaluated to measure domain adaptation across acquisition sites and scanner hardware.
 9. **Working Tree Provenance:** Model checkpoints record commit state `75da54d-dirty` because experiments were run with uncommitted audit and training scripts. A formal git commit is required to achieve clean hash provenance.
