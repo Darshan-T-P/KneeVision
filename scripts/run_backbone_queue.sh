@@ -13,10 +13,11 @@ cooldown() {  # break between models: wait (max 15 min) for the GPU to drop to <
   echo "[cooldown] GPU at ${t}C"
 }
 for model in convnext_tiny efficientnet-b4 swin_t vit_b_16; do
-  cooldown
   N=best_${model}_ordinal_${TAG}
+  if [ -f reports/test_evals/$N.test.json ]; then echo "[skip] $model already evaluated"; continue; fi
+  cooldown
   run() { uv run python scripts/compare_models.py --models $model --ordinal --soft-ordinal-targets \
-            --mixup-alpha 0.4 --seed 42 --tag $TAG "$@"; }
+            --mixup-alpha 0.4 --seed 42 --tag $TAG --resume "$@"; }
   run || { echo "[retry] $model at batch 16"; run --batch-size 16; }
   if [ -f models/$N.pt ]; then
     uv run python scripts/evaluate_ordinal_test.py --checkpoint models/$N.pt --tag $N \

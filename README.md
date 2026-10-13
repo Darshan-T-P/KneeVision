@@ -147,6 +147,7 @@ KneeVision++ synthesizes multiple public medical imaging, clinical tabular, narr
   - **Scope:** 8,260 high-resolution plain knee radiographs across 5 Kellgren–Lawrence grades (KL 0 to 4).
   - **Splits:** Train ($N = 5,778$), Validation ($N = 826$), Held-out Test ($N = 1,656$).
   - **Validation & Sanctity:** Strict patient-level separation verified via filename prefix matching ($0$ shared patients across any split). Unpacked from `data/archive.zip` to `data/raw/{train,val,test}/{kl_grade}/*.png`.
+- **Independent external cohort — Gornale & Patravali "Digital Knee X-ray Images" ([doi:10.17632/t9ndx37v5h.1](https://doi.org/10.17632/t9ndx37v5h.1), CC BY 4.0):** 1,650 hospital X-rays, KL 0–4 by two experts. Evaluated without retraining via `scripts/run_external_eval.sh` → `reports/external_gornale/`. Result: **QWK ≈ 0.60–0.61, accuracy ≈ 35%, binary AUC ≈ 0.83–0.84** (internal QWK 0.82–0.83), with sensitivity ≈ 97% but specificity ≈ 43%. Generalization to a new scanner/hospital is the main open limitation; see the audit for details.
 - **Roboflow Knee OA Detection (NOT an external cohort):**
   - **Direct URL:** [https://universe.roboflow.com/srm-zubpb/knee-oa-detection](https://universe.roboflow.com/srm-zubpb/knee-oa-detection)
   - **Scope:** 1,965 annotated knee radiographs exported under CC BY 4.0.

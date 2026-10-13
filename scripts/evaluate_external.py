@@ -88,6 +88,10 @@ def main() -> None:
     ap.add_argument("--label-map", type=str, default=None, help='e.g. "normal=0,doubtful=1,mild=2,moderate=3,severe=4"')
     ap.add_argument("--allow-non-ordinal", action="store_true")
     ap.add_argument("--out-json", type=Path, default=None)
+    ap.add_argument("--pad-square", action="store_true",
+                    help="letterbox each image to a square (median-intensity padding) before the usual resize, "
+                         "instead of stretching non-square images")
+    ap.add_argument("--save-predictions", type=Path, default=None, help="write per-image predictions + probabilities (CSV)")
     ap.add_argument("--dry-run", action="store_true", help="Only print the folder->grade mapping and counts")
     args = ap.parse_args()
 
@@ -109,7 +113,21 @@ def main() -> None:
         raise SystemExit("Checkpoint is not ordinal; pass --allow-non-ordinal to evaluate it.")
     model.eval()
 
-    loader = DataLoader(KneeXRayDataset(paths, labels, val_transform), batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+    transform = val_transform
+    if args.pad_square:
+        from PIL import Image as _Image
+        from torchvision import transforms as _T
+
+        def _letterbox(img):
+            w, h = img.size
+            side = max(w, h)
+            fill = tuple(int(v) for v in np.median(np.asarray(img).reshape(-1, 3), axis=0))
+            canvas = _Image.new("RGB", (side, side), fill)
+            canvas.paste(img, ((side - w) // 2, (side - h) // 2))
+            return canvas
+
+        transform = _T.Compose([_T.Lambda(_letterbox), val_transform])
+    loader = DataLoader(KneeXRayDataset(paths, labels, transform), batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
     preds, probs = [], []
     with torch.inference_mode():
         for images, _ in tqdm(loader, desc="External inference"):
@@ -129,10 +147,19 @@ def main() -> None:
     print("Confusion matrix (rows=true, cols=pred):\n", cm)
     print({k: round(float(v), 4) for k, v in metrics.items() if k == "accuracy" or "kappa" in k or k == "macro_f1"})
 
+    if args.save_predictions:
+        import csv
+        args.save_predictions.parent.mkdir(parents=True, exist_ok=True)
+        with open(args.save_predictions, "w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["image_path", "true_label", "pred_label"] + [f"prob_KL{k}" for k in range(5)])
+            for pth, t, pr_, pb in zip(paths, y, yhat, pr):
+                w.writerow([pth, int(t), int(pr_)] + [float(v) for v in pb])
+
     if args.out_json:
         args.out_json.parent.mkdir(parents=True, exist_ok=True)
         args.out_json.write_text(json.dumps({
-            "root": str(args.root), "checkpoint": str(args.checkpoint), "n": len(paths),
+            "root": str(args.root), "pad_square": bool(args.pad_square), "checkpoint": str(args.checkpoint), "n": len(paths),
             "folder_mapping": mapping, "metrics": {k: float(v) for k, v in metrics.items()},
             "confusion_matrix": np.asarray(cm).tolist(),
         }, indent=2))

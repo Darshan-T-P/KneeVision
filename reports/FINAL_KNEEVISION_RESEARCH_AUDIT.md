@@ -277,7 +277,15 @@ The KneeVision++ system has specific technical and methodological boundaries tha
 5. **Lack of Prospective Clinical Workflow Validation:** The system has not been evaluated in a silent-mode trial or prospective reader study to assess real-world radiologist interaction, alert fatigue, or diagnostic impact.
 6. **XAI Validation (partial, added 2026-10-13):** `reports/xai_faithfulness.json` (validation split): insertion AUC Grad-CAM 0.357 (n=100), Score-CAM 0.362 (n=20), LIME 0.293 (n=30) vs random 0.237; deletion AUC 0.217 / 0.248 / 0.259 vs random 0.238 (lower is better). Insertion is clearly above chance for all three; deletion is only marginally better than chance for Grad-CAM and not better for Score-CAM or LIME (small n; per-image SD ~0.09-0.14). Anatomical localization is not evaluated.
 7. **RAG Grounding & Hallucination Metrics Missing:** The rehab guideline assistant lacks formalized Precision@K, retrieval recall, and clinical guideline faithfulness benchmarks against curated clinical QA pairs.
-8. **External Multi-Cohort Validation Missing:** No second independent clinical cohort (such as the MOST or CHECK datasets) was evaluated to measure domain adaptation across acquisition sites and scanner hardware.
+8. **External Validation (added 2026-10-13): generalization is substantially lower.** Evaluated without retraining on the independent Gornale & Patravali cohort (Mendeley Data, 1,650 hospital knee X-rays, different X-ray machine and source than OAI; Expert-I labels; images stretched to 224x224 as in training; `reports/external_gornale/`):
+
+   | Model (mean ± SD over seeds) | QWK | Accuracy % | MAE | Within-1 % | Binary acc % | Sens / Spec % | Binary AUC |
+   |---|---|---|---|---|---|---|---|
+   | Plain soft CORAL + MixUp 0.4 (4 seeds) | 0.599 ± 0.040 | 35.7 ± 2.4 | 0.90 | 78.2 | 64.5 ± 3.0 | 96.9 / 43.0 | 0.831 |
+   | Multitask + soft CORAL (3 seeds) | 0.610 ± 0.023 | 35.4 ± 1.6 | 0.91 | 77.4 | 65.4 ± 0.9 | 97.3 / 44.2 | 0.839 |
+   | Focal baseline (1 seed) | 0.646 | 39.8 | 0.87 | 77.0 | 66.7 | 95.0 / 47.9 | 0.871 |
+
+   Internal test QWK was 0.82-0.83, so external QWK drops by about 0.2. Models rank images reasonably (binary AUC 0.83-0.87) but over-call disease: sensitivity ~97%, specificity ~43%, i.e. a shifted decision threshold under domain shift. CORAL/multitask show **no external robustness advantage** over the Focal baseline (single seed). Letterbox-padding the non-square images instead of stretching was markedly worse (QWK 0.32-0.37), consistent with the training images being stretched crops. No tuning was done on this cohort. For comparison, the base paper (Azad & Anik, IEEE Access 2025) reports 85.70% binary accuracy on this same cohort with a preprocessing pipeline (sharpening, denoising, histogram equalization) and a stacked ensemble; ours is ~65%, so that comparison favours the base paper and must be reported as such.
 9. **Working Tree Provenance:** Model checkpoints record commit state `75da54d-dirty` because experiments were run with uncommitted audit and training scripts. A formal git commit is required to achieve clean hash provenance.
 
 ---
