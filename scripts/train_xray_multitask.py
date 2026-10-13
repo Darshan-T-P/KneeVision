@@ -20,10 +20,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import numpy as np
 import torch
 from sklearn.metrics import cohen_kappa_score
 from torch import nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from kneevision.config.settings import (
@@ -73,6 +74,53 @@ def load_oai_features_dict(csv_path: Path) -> dict:
         for row in reader:
             features_dict[(row["id"], row["side"])] = row
     return features_dict
+
+
+class MixUpAuxDataset(Dataset):
+    """MixUp/CutMix over KneeXRayAuxDataset, mirroring data.dataset.MixUpDataset.
+
+    Returns a soft one-hot KL label. The auxiliary OARSI labels of a mixed image are
+    those of the dominant source image (lam >= 0.5 -> first image), since per-head
+    cross-entropy needs a hard class index.
+    """
+
+    def __init__(self, base, alpha: float = 0.4, num_classes: int = 5):
+        self.base, self.alpha, self.num_classes = base, alpha, num_classes
+
+    def __len__(self):
+        return len(self.base)
+
+    def _onehot(self, label):
+        v = torch.zeros(self.num_classes)
+        v[label] = 1.0
+        return v
+
+    def __getitem__(self, idx):
+        img1, label1, aux1 = self.base[idx]
+        y1 = self._onehot(label1)
+        if self.alpha <= 0.0 or np.random.random() > 0.5:
+            return img1, y1, aux1
+        idx2 = np.random.randint(len(self.base))
+        img2, label2, aux2 = self.base[idx2]
+        lam = np.random.beta(self.alpha, self.alpha)
+        if np.random.random() > 0.5:
+            mixed = lam * img1 + (1 - lam) * img2
+        else:
+            ratio = np.random.uniform(0.1, 0.3)
+            h, w = img1.shape[1:]
+            ch, cw = int(h * ratio), int(w * ratio)
+            y, x = np.random.randint(0, h - ch + 1), np.random.randint(0, w - cw + 1)
+            mixed = img1.clone()
+            mixed[:, y:y + ch, x:x + cw] = img2[:, y:y + ch, x:x + cw]
+        return mixed, lam * y1 + (1 - lam) * self._onehot(label2), (aux1 if lam >= 0.5 else aux2)
+
+
+def collate_mixup_aux_batch(batch):
+    """Like collate_aux_batch but stacks soft (float) label vectors."""
+    images = torch.stack([b[0] for b in batch])
+    labels = torch.stack([b[1] for b in batch])
+    aux = {f: torch.tensor([b[2][f] for b in batch], dtype=torch.long) for f in AUX_GRADE_FIELDS}
+    return images, labels, aux
 
 
 def train_epoch(model, loader, criterion_main, aux_weight, device, max_grad_norm, ema, scaler, optimizer):
@@ -134,10 +182,15 @@ def main():
     parser.add_argument("--ordinal", action="store_true", help="use CORAL ordinal loss for the main KL head")
     parser.add_argument("--aux-weight", type=float, default=0.3, help="weight for the summed auxiliary losses")
     parser.add_argument("--patience", type=int, default=EARLY_STOP_PATIENCE)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--mixup-alpha", type=float, default=0.0, help="MixUp/CutMix alpha (0 disables)")
+    parser.add_argument("--soft-ordinal-targets", action="store_true", help="ORDINAL ONLY: soft cumulative targets under MixUp")
+    parser.add_argument("--warmup-cosine", action="store_true", help="linear warmup + cosine schedule (as compare_models.py)")
+    parser.add_argument("--tag", type=str, default="", help="isolate artifacts: best_<model>_multitask_<tag>.pt")
     parser.add_argument("--oai-csv", type=Path, default=OAI_DATA_DIR / "processed" / "oai_clinical.csv")
     args = parser.parse_args()
 
-    set_seed(42)
+    set_seed(args.seed)
     device = get_device()
     is_cuda = device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda") if is_cuda else None
@@ -159,7 +212,11 @@ def main():
     val_ds = KneeXRayAuxDataset(val_paths, val_labels, features_dict, transform=val_transform)
 
     sampler = make_weighted_sampler(train_labels, power=SAMPLER_POWER)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=sampler, num_workers=2, collate_fn=collate_aux_batch)
+    train_collate = collate_aux_batch
+    if args.mixup_alpha > 0:
+        train_ds = MixUpAuxDataset(train_ds, alpha=args.mixup_alpha, num_classes=5)
+        train_collate = collate_mixup_aux_batch
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, sampler=sampler, num_workers=2, collate_fn=train_collate)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=2, collate_fn=collate_aux_batch)
 
     model = KneeXRayClassifier(args.model, num_classes=5, ordinal=args.ordinal, aux_grades=AUX_NUM_GRADES).to(device)
@@ -167,13 +224,24 @@ def main():
     logger.info("Parameters: %s", f"{params:,}")
 
     if args.ordinal:
-        criterion_main = OrdinalLoss(num_classes=5)
+        criterion_main = OrdinalLoss(num_classes=5, soft_targets=args.soft_ordinal_targets)
     else:
         weights = torch.tensor(class_weights(train_labels), dtype=torch.float)
         criterion_main = FocalLoss(alpha=weights.to(device), gamma=2.0)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
+    if args.warmup_cosine:
+        import math
+        warmup = min(5, max(1, args.epochs // 6))
+
+        def lr_lambda(ep):
+            if ep < warmup:
+                return (ep + 1) / warmup
+            return 0.5 * (1 + math.cos((ep - warmup) / max(1, args.epochs - warmup) * math.pi))
+
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+    else:
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     ema = EMA(model, decay=0.995)
     early_stop = EarlyStopping(patience=args.patience)
 
@@ -186,10 +254,11 @@ def main():
         )
         tracker.log_params({
             "model_name": args.model, "ordinal": args.ordinal, "aux_weight": args.aux_weight,
-            "batch_size": args.batch_size, "aux_fields": ",".join(AUX_GRADE_FIELDS),
+            "batch_size": args.batch_size, "seed": args.seed, "mixup_alpha": args.mixup_alpha,
+            "soft_targets": args.soft_ordinal_targets, "tag": args.tag, "aux_fields": ",".join(AUX_GRADE_FIELDS),
         })
 
-    best_path = MODELS_DIR / f"best_{args.model}_multitask.pt"
+    best_path = MODELS_DIR / f"best_{args.model}_multitask{('_' + args.tag) if args.tag else ''}.pt"
     best_kappa = -1.0
     start = time.time()
 
@@ -217,7 +286,8 @@ def main():
             meta = {
                 "image_size": IMAGE_SIZE, "model_name": args.model, "num_classes": 5,
                 "ordinal": args.ordinal, "multitask": True, "aux_fields": AUX_GRADE_FIELDS,
-                "best_kappa": float(best), "epoch": epoch,
+                "best_kappa": float(best), "best_validation_qwk": float(best), "epoch": epoch,
+                "seed": args.seed, "mixup_alpha": args.mixup_alpha, "soft_targets": args.soft_ordinal_targets,
             }
             best_path.with_suffix(".json").write_text(json.dumps(meta))
             logger.info("  -> Saved best (kappa=%.4f)", best)
