@@ -12,6 +12,15 @@ Mean ± sample SD (ddof=1) over seeds. Validation = checkpoint-selection split; 
 | 2024 | 36 | 0.8033 | 0.8244 | 0.3992 | 96.74% | 63.47% |
 | **mean ± SD** | | 0.7994 ± 0.0037 | 0.8163 ± 0.0128 | 0.4078 ± 0.0180 | 96.0749 ± 1.1297% | |
 
+## Multitask (OARSI aux heads) + soft CORAL + MixUp 0.4 (n=3)
+
+| Seed | Best epoch | Val QWK | Test QWK | Test MAE | Test Within-1 | Test Acc |
+|---|---|---|---|---|---|---|
+| 42 | 18 | 0.8079 | 0.8303 | 0.3841 | 95.53% | 66.24% |
+| 7 | 34 | 0.8068 | 0.8265 | 0.3949 | 96.20% | 64.37% |
+| 2024 | 25 | 0.8079 | 0.8261 | 0.3889 | 95.53% | 65.70% |
+| **mean ± SD** | | 0.8075 ± 0.0006 | 0.8276 ± 0.0023 | 0.3893 ± 0.0054 | 95.7528 ± 0.3835% | |
+
 ## Focal, no MixUp (n=3)
 
 | Seed | Best epoch | Val QWK | Test QWK | Test MAE | Test Within-1 | Test Acc |

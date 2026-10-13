@@ -18,6 +18,11 @@ GROUPS = {
         (M / f"{CORAL}_seed123.json", T / f"{CORAL}_seed123.test.json"),
         (M / f"{CORAL}_seed2024.json", T / f"{CORAL}_seed2024.test.json"),
     ],
+    "Multitask (OARSI aux heads) + soft CORAL + MixUp 0.4": [
+        (M / "best_densenet121_multitask_ordinal_soft_mixup_a04.json", T / "best_densenet121_multitask_ordinal_soft_mixup_a04.test.json"),
+        (M / "best_densenet121_multitask_ordinal_soft_mixup_a04_seed7.json", T / "best_densenet121_multitask_ordinal_soft_mixup_a04_seed7.test.json"),
+        (M / "best_densenet121_multitask_ordinal_soft_mixup_a04_seed2024.json", T / "best_densenet121_multitask_ordinal_soft_mixup_a04_seed2024.test.json"),
+    ],
     "Focal, no MixUp": [
         (M / "best_densenet121_focal_nomixup.json", T / "best_densenet121_focal_nomixup.test.json"),
         (M / "best_densenet121_focal_nomixup_seed123.json", T / "best_densenet121_focal_nomixup_seed123.test.json"),

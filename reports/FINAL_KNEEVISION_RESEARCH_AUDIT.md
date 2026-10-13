@@ -119,9 +119,12 @@ Two further CORAL seeds (7, 2024) and two further Focal seeds (123, 7) were trai
 | Configuration | n seeds | Val QWK (mean ± SD) | Test QWK (mean ± SD) | Test MAE | Test Within-1 |
 |---|---|---|---|---|---|
 | Soft CORAL + MixUp 0.4 | 4 | 0.7994 ± 0.0037 | **0.8163 ± 0.0128** | 0.4078 ± 0.0180 | 96.07 ± 1.13% |
+| Multitask (OARSI aux heads) + soft CORAL + MixUp 0.4 | 3 | 0.8075 ± 0.0006 | **0.8276 ± 0.0023** | 0.3893 ± 0.0054 | 95.75 ± 0.38% |
 | Focal, no MixUp | 3 | 0.7781 ± 0.0069 | 0.7853 ± 0.0230 | 0.4565 ± 0.0378 | 95.49 ± 1.22% |
 
 The locked model (seed 42, test QWK 0.8232) is at the upper end of its seed distribution; the honest headline is the 4-seed mean 0.816 ± 0.013. CORAL exceeds Focal on every validation seed and by ~0.031 test QWK, with lower seed-to-seed variance (SD 0.013 vs 0.023). One CORAL seed (123, 0.7973) is below the best Focal seed (42, 0.8079) and Focal has only three seeds, so this is supportive evidence, not a proven difference; no significance test was run.
+
+Adding the OARSI auxiliary heads (`train_xray_multitask.py`, same recipe, aux weight 0.3) raised mean test QWK by ~0.011 (0.8276 vs 0.8163) and cut seed-to-seed SD from 0.013 to 0.002; all three multitask seeds exceed every plain-CORAL validation seed. The gain is modest (comparable to the plain-CORAL seed spread) and Within-1 is slightly lower (95.75% vs 96.07%). The KL3-recall gain seen in the first seed (56.5%) did **not** replicate (56.5 / 28.7 / 48.0%), so it must not be claimed. In mixed images, auxiliary labels come from the dominant source image (lam >= 0.5). Note the auxiliary labels are the OARSI components that define KL (see Limitation 4), so this is multitask supervision, not independent information.
 
 ### Interpretation & Scope of Claims
 - **What this demonstrates:** The locked soft MixUp formulation displays high stability across independent pseudorandom seeds, with validation QWK varying by less than $0.007$ (test QWK: 0.8232 vs 0.7973) and Within-1 accuracy replicating identically to two decimal places ($96.13\%$).

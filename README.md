@@ -90,7 +90,7 @@ Evaluated on the frozen, patient-isolated held-out test split (828 unique patien
 
 ### 1b. Seed Robustness (4 seeds, held-out test set)
 
-Soft CORAL + MixUp 0.4: test QWK **0.8163 ± 0.0128** (seeds 42/7/123/2024 = 0.8232/0.8202/0.7973/0.8244), validation QWK 0.7994 ± 0.0037. Focal (no MixUp), 3 seeds: test QWK 0.7853 ± 0.0230. The locked checkpoint is seed 42. CORAL is ~0.03 QWK higher and more stable across seeds, but with few seeds and no significance test this is supportive evidence, not proof. Full tables: [`reports/SEED_ROBUSTNESS.md`](reports/SEED_ROBUSTNESS.md).
+Soft CORAL + MixUp 0.4: test QWK **0.8163 ± 0.0128** (seeds 42/7/123/2024 = 0.8232/0.8202/0.7973/0.8244), validation QWK 0.7994 ± 0.0037. Adding OARSI auxiliary heads (multitask, same recipe, 3 seeds): test QWK **0.8276 ± 0.0023** (+0.011, much lower variance; KL3-recall gain did not replicate across seeds). Focal (no MixUp), 3 seeds: test QWK 0.7853 ± 0.0230. The locked checkpoint is seed 42. CORAL is ~0.03 QWK higher and more stable across seeds, but with few seeds and no significance test this is supportive evidence, not proof. Full tables: [`reports/SEED_ROBUSTNESS.md`](reports/SEED_ROBUSTNESS.md).
 
 ### 2. Test Confusion Matrix & Error Topology
 
