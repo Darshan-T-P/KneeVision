@@ -286,6 +286,18 @@ The KneeVision++ system has specific technical and methodological boundaries tha
    | Focal baseline (1 seed) | 0.646 | 39.8 | 0.87 | 77.0 | 66.7 | 95.0 / 47.9 | 0.871 |
 
    Internal test QWK was 0.82-0.83, so external QWK drops by about 0.2. Models rank images reasonably (binary AUC 0.83-0.87) but over-call disease: sensitivity ~97%, specificity ~43%, i.e. a shifted decision threshold under domain shift. CORAL/multitask show **no external robustness advantage** over the Focal baseline (single seed). Letterbox-padding the non-square images instead of stretching was markedly worse (QWK 0.32-0.37), consistent with the training images being stretched crops. No tuning was done on this cohort. For comparison, the base paper (Azad & Anik, IEEE Access 2025) reports 85.70% binary accuracy on this same cohort with a preprocessing pipeline (sharpening, denoising, histogram equalization) and a stacked ensemble; ours is ~65%, so that comparison favours the base paper and must be reported as such.
+   **Adaptation study (Tier A, `reports/external_adapt/SUMMARY.md`).** The external cohort was split once (stratified, seed 42) into a 30% development part (n=495) and a 70% held-out test part (n=1,155); all adaptation used only the development part and every method below is reported on the held-out part (no patient IDs exist, so the same patient may appear on both sides, which can make results slightly optimistic). Mean ± SD over seeds, external-test QWK / binary accuracy / specificity:
+
+   | Model | Zero-shot | AdaBN (unlabelled) | Recalibrated thresholds, 50 labels | Recalibrated, all 495 labels |
+   |---|---|---|---|---|
+   | Plain CORAL DenseNet121 (4 seeds) | 0.610 ± 0.034 / 65.0% / 44% | 0.682 ± 0.031 / 78.4% / 74% | 0.715 ± 0.029 / 76.2% / 72% | 0.733 ± 0.020 / 76.6% / 73% |
+   | Multitask CORAL DenseNet121 (3 seeds) | 0.621 ± 0.017 / 66.3% / 46% | 0.685 ± 0.030 / 77.7% / 74% | 0.716 ± 0.027 / 77.2% / 74% | 0.728 ± 0.018 / 77.8% / 75% |
+   | ConvNeXt-Tiny (1 seed) | 0.679 / 69.2% / 52% | 0.753 / 78.5% / 70% | 0.759 / 79.4% / 74% | 0.770 / 80.1% / 74% |
+   | EfficientNet-B4 (1 seed) | 0.588 / 63.5% / 41% | 0.644 / 78.8% / 78% | 0.720 / 79.6% / 79% | 0.721 / 80.7% / 82% |
+   | Swin-T (1 seed) | 0.388 / 55.2% / 27% | 0.655 / 72.9% / 61% | 0.692 / 76.6% / 72% | 0.699 / 76.9% / 71% |
+
+   Findings: (i) unsupervised BatchNorm re-estimation and few-shot threshold recalibration recover a large part of the external gap (DenseNet QWK 0.61 -> 0.68 / 0.72; specificity 44% -> about 74%), (ii) 50 labelled images give most of the recalibration benefit, (iii) combining AdaBN with recalibration is not additive for DenseNet, (iv) 5-class accuracy stays below 50% externally, (v) for ConvNeXt-Tiny and Swin-T the backbone has no BatchNorm, so 'AdaBN' only re-estimates one BatchNorm layer in the classifier head and is not a full-network adaptation, (vi) non-DenseNet rows are single-seed and must not be used to pick a backbone on external data. These are adaptation results, not zero-shot generalization. A pre-registered preprocessing ablation (histogram equalization) made external performance worse (QWK 0.35 vs 0.56 for the same seed, with the 'paper' pipeline variant stopped unfinished for time).
+
 9. **Working Tree Provenance:** Model checkpoints record commit state `75da54d-dirty` because experiments were run with uncommitted audit and training scripts. A formal git commit is required to achieve clean hash provenance.
 
 ---
