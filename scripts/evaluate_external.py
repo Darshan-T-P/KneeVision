@@ -31,7 +31,8 @@ from tqdm import tqdm
 
 from kneevision.config.settings import BATCH_SIZE, PROJECT_ROOT
 from kneevision.data.dataset import KneeXRayDataset
-from kneevision.data.transforms import val_transform
+from kneevision.data.preprocess import PREPROCESS_CHOICES
+from kneevision.data.transforms import build_val_transform, val_transform
 from kneevision.evaluation.report import (
     classification_report_text,
     compute_confusion_matrix,
@@ -88,6 +89,8 @@ def main() -> None:
     ap.add_argument("--label-map", type=str, default=None, help='e.g. "normal=0,doubtful=1,mild=2,moderate=3,severe=4"')
     ap.add_argument("--allow-non-ordinal", action="store_true")
     ap.add_argument("--out-json", type=Path, default=None)
+    ap.add_argument("--preprocess", choices=PREPROCESS_CHOICES, default="none",
+                    help="must match the preprocessing the checkpoint was trained with")
     ap.add_argument("--pad-square", action="store_true",
                     help="letterbox each image to a square (median-intensity padding) before the usual resize, "
                          "instead of stretching non-square images")
@@ -113,7 +116,7 @@ def main() -> None:
         raise SystemExit("Checkpoint is not ordinal; pass --allow-non-ordinal to evaluate it.")
     model.eval()
 
-    transform = val_transform
+    transform = build_val_transform(preprocess=args.preprocess) if args.preprocess != "none" else val_transform
     if args.pad_square:
         from PIL import Image as _Image
         from torchvision import transforms as _T
@@ -126,7 +129,7 @@ def main() -> None:
             canvas.paste(img, ((side - w) // 2, (side - h) // 2))
             return canvas
 
-        transform = _T.Compose([_T.Lambda(_letterbox), val_transform])
+        transform = _T.Compose([_T.Lambda(_letterbox), transform])
     loader = DataLoader(KneeXRayDataset(paths, labels, transform), batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
     preds, probs = [], []
     with torch.inference_mode():
@@ -159,7 +162,7 @@ def main() -> None:
     if args.out_json:
         args.out_json.parent.mkdir(parents=True, exist_ok=True)
         args.out_json.write_text(json.dumps({
-            "root": str(args.root), "pad_square": bool(args.pad_square), "checkpoint": str(args.checkpoint), "n": len(paths),
+            "root": str(args.root), "pad_square": bool(args.pad_square), "preprocess": args.preprocess, "checkpoint": str(args.checkpoint), "n": len(paths),
             "folder_mapping": mapping, "metrics": {k: float(v) for k, v in metrics.items()},
             "confusion_matrix": np.asarray(cm).tolist(),
         }, indent=2))

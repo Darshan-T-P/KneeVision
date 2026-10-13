@@ -29,7 +29,8 @@ from tqdm import tqdm
 from kneevision.config.settings import BATCH_SIZE, PROJECT_ROOT, RAW_DATA_DIR
 from kneevision.data.dataset import KneeXRayDataset
 from kneevision.data.prepare import get_paths_and_labels
-from kneevision.data.transforms import val_transform
+from kneevision.data.preprocess import PREPROCESS_CHOICES
+from kneevision.data.transforms import build_val_transform, val_transform
 from kneevision.evaluation.report import (
     classification_report_text,
     compute_confusion_matrix,
@@ -70,6 +71,8 @@ def _sha256(path: Path) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Frozen held-out TEST evaluation for CORAL/DenseNet121 ordinal models.")
     parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT, help="Path to model checkpoint")
+    parser.add_argument("--preprocess", choices=PREPROCESS_CHOICES, default="none",
+                        help="must match the preprocessing the checkpoint was trained with")
     parser.add_argument("--tag", type=str, default=None, help="Identifier tag for this evaluation")
     parser.add_argument("--source-run-id", type=str, default=None, help="MLflow source training run ID to associate with")
     parser.add_argument("--out-md", type=Path, default=None, help="Path to write markdown evaluation report")
@@ -128,7 +131,8 @@ def main() -> None:
     print(f"Checkpoint SHA-256 before evaluation: {sha256_before}")
 
     test_paths, test_labels = get_paths_and_labels(RAW_DATA_DIR / "test")
-    test_ds = KneeXRayDataset(test_paths, test_labels, val_transform)
+    test_ds = KneeXRayDataset(test_paths, test_labels,
+                              build_val_transform(preprocess=args.preprocess) if args.preprocess != "none" else val_transform)
     test_loader = DataLoader(test_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
 
     assert len(test_paths) == EXPECTED_SAMPLES, f"expected {EXPECTED_SAMPLES} test samples, got {len(test_paths)}"

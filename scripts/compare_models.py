@@ -32,7 +32,11 @@ from kneevision.config.settings import (
 from kneevision.data.dataset import KneeXRayDataset, MixUpDataset, make_weighted_sampler
 from kneevision.data.prepare import class_weights as make_class_weights
 from kneevision.data.prepare import get_paths_and_labels, minority_labels
+from kneevision.data.preprocess import PREPROCESS_CHOICES
 from kneevision.data.transforms import (
+    build_minority_transform,
+    build_train_transform,
+    build_val_transform,
     minority_transform,
     train_transform,
     val_transform,
@@ -114,7 +118,7 @@ def build_provenance(*, model_name: str, ordinal: bool, binary: bool,
                      patience: int, seed: int, device,
                      use_mixup_alpha: float, soft_targets: bool,
                      class_weights_enabled: bool, use_label_smoothing: float,
-                     tag: str) -> dict:
+                     tag: str, preprocess: str = "none") -> dict:
     """The experiment/config/environment record written into every checkpoint."""
     return {
         "experiment": f"{model_name}_{('ordinal' if ordinal else 'binary' if binary else 'standard')}",
@@ -134,6 +138,7 @@ def build_provenance(*, model_name: str, ordinal: bool, binary: bool,
         "sampler_power": SAMPLER_POWER,
         "class_weights": class_weights_enabled if not ordinal else None,
         "soft_targets": soft_targets,
+        "preprocess": preprocess,
         "tag": tag or None,
         "criterion": (
             f"OrdinalLoss(alpha=None, soft_targets={soft_targets})" if ordinal
@@ -162,7 +167,7 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False,
         seed: int = SEED, num_workers: int = NUM_WORKERS,
         soft_targets: bool = False, mixup_alpha: float | None = None,
         class_weights: float | None = None, label_smoothing: float | None = None,
-        tag: str = ""):
+        tag: str = "", preprocess: str = "none"):
     num_classes = 2 if binary else NUM_KL_CLASSES
     mode = "Binary" if binary else ("Ordinal" if ordinal else "Standard")
     run_name = f"{model_name}_{mode.lower()}{('_' + tag) if tag else ''}_{time.strftime('%Y%m%d_%H%M%S')}"
@@ -188,7 +193,7 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False,
         patience=patience, seed=seed, device=device,
         use_mixup_alpha=use_mixup_alpha, soft_targets=soft_targets,
         class_weights_enabled=class_weights_enabled,
-        use_label_smoothing=use_label_smoothing, tag=tag,
+        use_label_smoothing=use_label_smoothing, tag=tag, preprocess=preprocess,
     )
 
     if MLFLOW_ENABLED:
@@ -212,10 +217,16 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False,
 
     minority_set = minority_labels(train_labels, num_classes=num_classes)
 
+    if preprocess != "none":  # opt-in: identical preprocessing for train and eval
+        train_tf, minority_tf, val_tf = (build_train_transform(preprocess=preprocess),
+                                         build_minority_transform(preprocess=preprocess),
+                                         build_val_transform(preprocess=preprocess))
+    else:
+        train_tf, minority_tf, val_tf = train_transform, minority_transform, val_transform
     train_ds = KneeXRayDataset(
         train_paths, train_labels,
-        transform=train_transform,
-        minority_transform=minority_transform,
+        transform=train_tf,
+        minority_transform=minority_tf,
         minority_labels=minority_set,
     )
 
@@ -223,7 +234,7 @@ def run(model_name: str, ordinal: bool = False, resume: bool = False,
         train_ds = MixUpDataset(train_ds, alpha=use_mixup_alpha, num_classes=num_classes)
 
     sampler = make_weighted_sampler(train_labels, power=SAMPLER_POWER)
-    val_ds = KneeXRayDataset(val_paths, val_labels, val_transform)
+    val_ds = KneeXRayDataset(val_paths, val_labels, val_tf)
 
     # An explicit generator + worker_init_fn makes the batch stream reproducible
     # (and resumable) across identical seeds on any worker topology.
@@ -435,6 +446,8 @@ if __name__ == "__main__":
                              "class weighting (default: %(default)s = current behavior, enabled)")
     parser.add_argument("--label-smoothing", type=float, default=None, metavar="FLOAT",
                         help="Focal only: label smoothing in [0, 1) (default: %(default)s = current 0.1)")
+    parser.add_argument("--preprocess", choices=PREPROCESS_CHOICES, default="none",
+                        help="opt-in radiograph preprocessing applied at train AND eval time (default: none)")
     parser.add_argument("--tag", type=str, default="", metavar="NAME",
                         help="isolate all artifacts under this tag, e.g. '--tag focal_mixup' "
                              "writes best_densenet121_focal_mixup.pt")
@@ -455,7 +468,7 @@ if __name__ == "__main__":
             seed=args.seed, num_workers=args.num_workers,
             soft_targets=args.soft_ordinal_targets, mixup_alpha=args.mixup_alpha,
             class_weights=args.class_weights, label_smoothing=args.label_smoothing,
-            tag=args.tag)
+            tag=args.tag, preprocess=args.preprocess)
         results.append((name, params, kappa, t))
 
     logger.info("=" * 60)

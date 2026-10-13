@@ -1,6 +1,7 @@
 from torchvision import transforms
 
 from kneevision.config.settings import IMAGE_SIZE
+from kneevision.data.preprocess import get_preprocess
 
 randaugment = transforms.RandAugment(num_ops=2, magnitude=9)
 
@@ -43,20 +44,26 @@ def _normalize():
     return transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
 
-def build_train_transform(size: int = IMAGE_SIZE):
-    return transforms.Compose(_train_augmentations(size))
+def _with_preprocess(steps: list, preprocess: str) -> list:
+    """Prepend the optional (opt-in) radiograph preprocessing step."""
+    fn = get_preprocess(preprocess)
+    return steps if fn is None else [fn, *steps]
 
 
-def build_minority_transform(size: int = IMAGE_SIZE):
-    return transforms.Compose(_minority_augmentations(size))
+def build_train_transform(size: int = IMAGE_SIZE, preprocess: str = "none"):
+    return transforms.Compose(_with_preprocess(_train_augmentations(size), preprocess))
 
 
-def build_val_transform(size: int = IMAGE_SIZE):
-    return transforms.Compose([
+def build_minority_transform(size: int = IMAGE_SIZE, preprocess: str = "none"):
+    return transforms.Compose(_with_preprocess(_minority_augmentations(size), preprocess))
+
+
+def build_val_transform(size: int = IMAGE_SIZE, preprocess: str = "none"):
+    return transforms.Compose(_with_preprocess([
         transforms.Resize((size, size)),
         transforms.ToTensor(),
         _normalize(),
-    ])
+    ], preprocess))
 
 
 def build_tta_transforms(size: int = IMAGE_SIZE):
