@@ -1,0 +1,62 @@
+[
+  {
+    "model": "DenseNet121 (plain CORAL)",
+    "checkpoint": "best_densenet121_ordinal_ordinal_soft_mixup_a04",
+    "params_m_total": 8.009604,
+    "params_m_inference": 8.009604,
+    "ckpt_mb": 32.694307,
+    "gflops": 5.668380672,
+    "ms_per_image_b1_fp32": 12.340594500074076,
+    "ms_per_image_b1_fp16": 13.736808999965433,
+    "ms_per_image_b32_fp32": 2.5097691875046735,
+    "ms_per_image_b32_fp16": 1.3476504062523986
+  },
+  {
+    "model": "DenseNet121 + OARSI aux heads",
+    "checkpoint": "best_densenet121_multitask_ordinal_soft_mixup_a04",
+    "params_m_total": 8.042404,
+    "params_m_inference": 8.009604,
+    "ckpt_mb": 32.832939,
+    "gflops": 5.668380672,
+    "ms_per_image_b1_fp32": 9.155818500175883,
+    "ms_per_image_b1_fp16": 10.389551499883964,
+    "ms_per_image_b32_fp32": 2.5257369531246354,
+    "ms_per_image_b32_fp16": 1.3532692500035637
+  },
+  {
+    "model": "ConvNeXt-Tiny",
+    "checkpoint": "best_convnext_tiny_ordinal_ordinal_soft_mixup_a04",
+    "params_m_total": 28.613732,
+    "params_m_inference": 28.613732,
+    "ckpt_mb": 114.544067,
+    "gflops": 8.911107584,
+    "ms_per_image_b1_fp32": 3.544510999972772,
+    "ms_per_image_b1_fp16": 4.591080999944097,
+    "ms_per_image_b32_fp32": 2.893382609371997,
+    "ms_per_image_b32_fp16": 1.3803842656230358
+  },
+  {
+    "model": "EfficientNet-B4",
+    "checkpoint": "best_efficientnet-b4_ordinal_ordinal_soft_mixup_a04",
+    "params_m_total": 19.390796,
+    "params_m_inference": 19.390796,
+    "ckpt_mb": 78.377281,
+    "gflops": 3.007515072,
+    "ms_per_image_b1_fp32": 9.448784000142041,
+    "ms_per_image_b1_fp16": 11.764504499979012,
+    "ms_per_image_b32_fp32": 3.0841226875040206,
+    "ms_per_image_b32_fp16": 1.471507781246828
+  },
+  {
+    "model": "Swin-T",
+    "checkpoint": "best_swin_t_ordinal_ordinal_soft_mixup_a04",
+    "params_m_total": 28.312958,
+    "params_m_inference": 28.312958,
+    "ckpt_mb": 113.570001,
+    "gflops": 8.981178368,
+    "ms_per_image_b1_fp32": 8.060132499849715,
+    "ms_per_image_b1_fp16": 9.762034499772199,
+    "ms_per_image_b32_fp32": 3.8515633906257563,
+    "ms_per_image_b32_fp16": 1.9343956562565268
+  }
+]

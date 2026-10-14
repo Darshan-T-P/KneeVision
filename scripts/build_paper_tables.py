@@ -140,6 +140,9 @@ def label_for(stem):
     s = stem.replace("best_", "").replace(".predictions", "")
     if s == "final_ordinal_soft_mixup_a04_test":
         return "DenseNet121 · soft CORAL + MixUp 0.4 · seed 42 (locked)"
+    s = s.replace("densenet121_ordinal_short40_base_seed", "DenseNet121 · soft CORAL + MixUp 0.4 · 40-epoch schedule (matched baseline) · seed ")
+    s = s.replace("densenet121_ordinal_short40_robust_seed", "DenseNet121 · soft CORAL + MixUp 0.4 · 40-epoch schedule · DOMAIN-ROBUST aug · seed ")
+    s = s.replace("densenet121_ordinal_ordinal_soft_mixup_a04_pre_hist_eq", "DenseNet121 · soft CORAL + MixUp 0.4 · histogram-equalization preprocessing · seed 42")
     s = s.replace("densenet121_ordinal_ordinal_soft_mixup_a04_seed", "DenseNet121 · soft CORAL + MixUp 0.4 · seed ")
     s = s.replace("densenet121_multitask_ordinal_soft_mixup_a04_seed", "DenseNet121 + OARSI aux heads · soft CORAL + MixUp 0.4 · seed ")
     s = s.replace("densenet121_multitask_ordinal_soft_mixup_a04", "DenseNet121 + OARSI aux heads · soft CORAL + MixUp 0.4 · seed 42")
