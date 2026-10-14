@@ -298,6 +298,21 @@ The KneeVision++ system has specific technical and methodological boundaries tha
 
    Findings: (i) unsupervised BatchNorm re-estimation and few-shot threshold recalibration recover a large part of the external gap (DenseNet QWK 0.61 -> 0.68 / 0.72; specificity 44% -> about 74%), (ii) 50 labelled images give most of the recalibration benefit, (iii) combining AdaBN with recalibration is not additive for DenseNet, (iv) 5-class accuracy stays below 50% externally, (v) for ConvNeXt-Tiny and Swin-T the backbone has no BatchNorm, so 'AdaBN' only re-estimates one BatchNorm layer in the classifier head and is not a full-network adaptation, (vi) non-DenseNet rows are single-seed and must not be used to pick a backbone on external data. These are adaptation results, not zero-shot generalization. A pre-registered preprocessing ablation (histogram equalization) made external performance worse (QWK 0.35 vs 0.56 for the same seed, with the 'paper' pipeline variant stopped unfinished for time).
 
+   **Tier B: domain-robust training (pre-specified; `reports/external_adapt_tierb/SUMMARY.md`).** DenseNet121, soft CORAL + MixUp 0.4, 40-epoch schedule with patience 8 (so these runs are NOT comparable with the 100-epoch results above), seeds 42 and 7, checkpoints chosen on OAI validation QWK. 'Robust' = random aspect ratio, down/up-sampling and blur, gamma, stronger brightness/contrast, noise, and per-image standardization (train and test). Mean ± SD over 2 seeds:
+
+   | Measure | Matched baseline (default pipeline) | Domain-robust |
+   |---|---|---|
+   | OAI test QWK | 0.794 ± 0.026 | **0.827 ± 0.010** |
+   | OAI test Within-1 % | 96.2 | 94.2 |
+   | External zero-shot QWK (held-out 70%) | 0.638 ± 0.048 | **0.720 ± 0.035** |
+   | External zero-shot binary accuracy | 70.5 ± 1.8% | **74.2 ± 2.8%** |
+   | External QWK after AdaBN | 0.708 ± 0.017 | 0.730 ± 0.021 |
+   | External QWK after 50-label recalibration | 0.715 ± 0.013 | **0.773 ± 0.001** |
+   | External QWK after full recalibration | 0.725 ± 0.028 | **0.794 ± 0.002** |
+   | External binary accuracy after full recalibration | 78.4 ± 0.9% | **84.2 ± 0.2%** |
+
+   Robust training improved external zero-shot QWK by about 0.08 and the OAI test QWK by about 0.03 in both seeds, at a small cost in Within-1 on OAI (about 2 points). With only two seeds the intervals are indicative, not conclusive; an adapted external binary accuracy of 84.2% approaches, but does not reach, the base paper's 85.7% on this cohort (which it reported without adaptation). Zero-shot external binary accuracy (74%) remains well below that figure.
+
 9. **Working Tree Provenance:** Model checkpoints record commit state `75da54d-dirty` because experiments were run with uncommitted audit and training scripts. A formal git commit is required to achieve clean hash provenance.
 
 ---
