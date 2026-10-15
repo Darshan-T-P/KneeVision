@@ -1,0 +1,4 @@
+# Light base with a teal accent: buttons, radio dots, focus rings and sliders all follow primaryColor.
+[theme]
+base = "light"
+primaryColor = "#087e8b"

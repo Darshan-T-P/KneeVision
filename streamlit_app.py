@@ -885,6 +885,68 @@ textarea,
 [data-testid="stMarkdownContainer"] [style*="color:#94a3b8"] {
     color: #172b3a !important;
 }
+
+/* ---- Buttons (every page): readable on the light layout ---- */
+.stButton > button,
+.stDownloadButton > button,
+.stFormSubmitButton > button,
+[data-testid="stBaseButton-secondary"],
+[data-testid="stBaseButton-secondaryFormSubmit"],
+[data-testid="stFileUploader"] button {
+    background: #ffffff !important;
+    color: #087e8b !important;
+    border: 1px solid #9cced6 !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    box-shadow: none !important;
+    transition: background .15s, border-color .15s, color .15s;
+}
+.stButton > button:hover,
+.stDownloadButton > button:hover,
+.stFormSubmitButton > button:hover,
+[data-testid="stBaseButton-secondary"]:hover,
+[data-testid="stFileUploader"] button:hover {
+    background: #eaf6f8 !important;
+    border-color: #087e8b !important;
+    color: #066a75 !important;
+}
+.stButton > button:focus-visible,
+.stDownloadButton > button:focus-visible,
+[data-testid="stFileUploader"] button:focus-visible {
+    box-shadow: 0 0 0 3px rgba(8, 126, 139, .28) !important;
+    outline: none !important;
+}
+.stButton > button[kind="primary"],
+.stFormSubmitButton > button[kind="primary"],
+[data-testid="stBaseButton-primary"],
+[data-testid="stBaseButton-primaryFormSubmit"] {
+    background: #087e8b !important;
+    color: #ffffff !important;
+    border: 1px solid #087e8b !important;
+}
+.stButton > button[kind="primary"]:hover,
+.stFormSubmitButton > button[kind="primary"]:hover,
+[data-testid="stBaseButton-primary"]:hover,
+[data-testid="stBaseButton-primaryFormSubmit"]:hover {
+    background: #066a75 !important;
+    border-color: #066a75 !important;
+    color: #ffffff !important;
+}
+.stButton > button:disabled,
+.stDownloadButton > button:disabled,
+[data-testid="stBaseButton-secondary"]:disabled,
+[data-testid="stBaseButton-primary"]:disabled {
+    background: #eef3f5 !important;
+    color: #8ba0a8 !important;
+    border-color: #d9e4e8 !important;
+}
+.stButton > button p,
+.stDownloadButton > button p,
+.stFormSubmitButton > button p,
+[data-testid="stFileUploader"] button p,
+[data-testid="stFileUploader"] button span {
+    color: inherit !important;
+}
 </style>
 """
 
@@ -900,7 +962,7 @@ def hero():
             <p>Research prototype for knee osteoarthritis: Kellgren–Lawrence (KL 0–4) grading from radiographs, screening from report text generated from structured OAI findings, and late-fusion decision support. Not a diagnostic device.</p>
             <div class="kvp-badges">
                 <span>🩻 KL Grades 0–4</span>
-                <span>⚡ CNN Ensemble (DenseNet + EfficientNet)</span>
+                <span>⚡ CORAL DenseNet121 Models</span>
                 <span>🧬 BioClinicalBERT</span>
                 <span>🔍 Grad-CAM &middot; Score-CAM &middot; LIME</span>
                 <span>📊 MLflow Monitored</span>
@@ -975,7 +1037,7 @@ def fusion_flow_diagram():
               </div>
               <div class="flow-arrow">&rarr;</div>
               <div class="flow-node">
-                CNN Ensemble
+                X-ray Ensemble
                 <small>DenseNet121 &middot; EfficientNet-B4</small>
               </div>
               <div class="flow-arrow">&rarr;</div>
