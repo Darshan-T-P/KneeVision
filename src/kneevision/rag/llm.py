@@ -128,13 +128,23 @@ class OpenAICompatClient:
 
     def generate(self, prompt: str) -> str:
         try:
-            resp = requests.post(
-                f"{self.base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"},
-                json={"model": self.model, "temperature": 0,
-                      "messages": [{"role": "user", "content": prompt}]},
-                timeout=self.timeout,
-            )
+            def _post():
+                return requests.post(
+                    f"{self.base_url}/chat/completions",
+                    headers={"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"},
+                    json={"model": self.model, "temperature": 0,
+                          "messages": [{"role": "user", "content": prompt}]},
+                    timeout=self.timeout,
+                )
+
+            resp = _post()
+            if resp.status_code == 429:  # per-minute rate limit (e.g. Groq free tier): wait briefly, retry once
+                try:
+                    wait = float(resp.headers.get("retry-after", 3))
+                except ValueError:
+                    wait = 3.0
+                time.sleep(min(max(wait, 1.0), 8.0))
+                resp = _post()
             resp.raise_for_status()
             data = resp.json()
             text = data["choices"][0]["message"]["content"]
@@ -159,5 +169,6 @@ def make_llm_client(provider: str | None = None):
     if provider == "xai" and settings.XAI_API_KEY:
         return OpenAICompatClient(settings.XAI_BASE_URL, settings.XAI_MODEL, settings.XAI_API_KEY, provider="xAI Grok")
     if provider == "openai-compatible" and settings.LLM_API_KEY and settings.LLM_BASE_URL and settings.LLM_MODEL:
-        return OpenAICompatClient(settings.LLM_BASE_URL, settings.LLM_MODEL, settings.LLM_API_KEY)
+        name = "Groq" if "groq.com" in settings.LLM_BASE_URL.lower() else "openai-compatible"
+        return OpenAICompatClient(settings.LLM_BASE_URL, settings.LLM_MODEL, settings.LLM_API_KEY, provider=name)
     return OllamaClient()

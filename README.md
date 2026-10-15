@@ -58,7 +58,7 @@ The system integrates:
   users not to enter identifying details.
 - **Cold Start Notice:** On Streamlit Community Cloud cold starts, the app automatically fetches required model weights from the Hugging Face repository above (`ensure_checkpoints()`). Subsequent runs reuse the cached weights.
 - **Hugging Face Model Checkpoints hosted:**
-  - `best_densenet121_ordinal_ordinal_soft_mixup_a04.pt` (Final locked CORAL ordinal model)
+  - `best_densenet121_ordinal_ordinal_soft_mixup_a04.pt` (locked CORAL ordinal model), `best_densenet121_multitask_ordinal_soft_mixup_a04.pt` (best model: CORAL + OARSI aux heads) and `best_densenet121_ordinal_short40_robust_seed42.pt` (domain-robust) — **not on the Hub until uploaded with `uv run python scripts/upload_models_to_hf.py --upload`** (needs a Hugging Face write token). Until then the cloud app only offers the older checkpoints listed below.
   - `best_densenet121.pt` (Standard multi-class DenseNet121 baseline)
   - `best_efficientnet-b4.pt` (EfficientNet-B4 baseline)
   - `best_convnext_small_binary.pt` (Binary screening ConvNeXt-Small)

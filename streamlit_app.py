@@ -1466,7 +1466,7 @@ def page_diagnosis(device, image_models):
             help="Auto-Detect analyzes aspect ratio and bone separation to automatically split bilateral views into Right and Left knee joints.",
         )
     with c_model:
-        model_choice = st.selectbox("Model", list(image_models.keys()) + [ENSEMBLE_OPTION], key="diag_model_choice")
+        model_choice = st.selectbox("Model", list(image_models.keys()) + ([ENSEMBLE_OPTION] if sum(l in image_models for l in ENSEMBLE_LABELS) >= 2 else []), key="diag_model_choice")
 
     if "diag_sample_choice" not in st.session_state:
         st.session_state["diag_sample_choice"] = None
