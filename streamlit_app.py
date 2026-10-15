@@ -895,9 +895,9 @@ def hero():
         <div class="kvp-hero">
             <div class="kvp-hero-title-row">
                 <h1>🦵 KneeVision++ <span style="font-weight:400;color:#94a3b8;font-size:1.4rem;">· Multimodal OA Diagnosis</span></h1>
-                <div class="kvp-status-pill"><span class="dot-online"></span> Diagnostic Models Active</div>
+                <div class="kvp-status-pill"><span class="dot-online"></span> Research Models Active</div>
             </div>
-            <p>Clinical-grade deep learning system for knee osteoarthritis: fine-grained Kellgren–Lawrence (KL 0–4) grading from radiographs, triage screening from clinical narrative reports, and late-fusion decision support.</p>
+            <p>Research prototype for knee osteoarthritis: Kellgren–Lawrence (KL 0–4) grading from radiographs, screening from report text generated from structured OAI findings, and late-fusion decision support. Not a diagnostic device.</p>
             <div class="kvp-badges">
                 <span>🩻 KL Grades 0–4</span>
                 <span>⚡ CNN Ensemble (DenseNet + EfficientNet)</span>
@@ -987,7 +987,7 @@ def fusion_flow_diagram():
             <div class="flow-row">
               <div class="flow-node">
                 📝 Clinical Report
-                <small>free-text narrative findings</small>
+                <small>report text built from structured OAI findings</small>
               </div>
               <div class="flow-arrow">&rarr;</div>
               <div class="flow-node">
@@ -1233,7 +1233,7 @@ def page_overview():
                 title="Clinical Corpus",
                 value="16,592",
                 unit="reports",
-                subtitle="OAI free-text narrative radiology impressions & clinical findings",
+                subtitle="Report text generated from structured OAI fields (radiographic findings, symptoms, demographics)",
                 badge_text="BioClinicalBERT",
                 icon="📝",
             ),
@@ -1273,7 +1273,7 @@ def page_overview():
             <div class="kvp-feat-card">
                 <div class="kvp-feat-icon">🩻</div>
                 <div class="kvp-feat-title">1. Data Architecture</div>
-                <div class="kvp-feat-text">8,260 standardized radiographs across 5 KL severity grades plus 16.5k narrative radiology notes from OAI.</div>
+                <div class="kvp-feat-text">8,260 standardized radiographs across 5 KL severity grades plus 16.6k OAI clinical records rendered as report text (structured findings, not free-text radiology notes).</div>
             </div>
             <div class="kvp-feat-card">
                 <div class="kvp-feat-icon">⚙️</div>
