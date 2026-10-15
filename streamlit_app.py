@@ -22,6 +22,15 @@ import streamlit as st
 import torch
 from PIL import Image
 
+# Bridge Streamlit secrets (local .streamlit/secrets.toml or Streamlit Cloud -> Secrets) into environment variables
+# BEFORE kneevision.config.settings is imported, so XAI_API_KEY / LLM_* reach the Grok client. Env vars win if both are set.
+try:
+    for _key in ("LLM_PROVIDER", "XAI_API_KEY", "XAI_MODEL", "XAI_BASE_URL", "LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY"):
+        if _key in st.secrets:
+            os.environ.setdefault(_key, str(st.secrets[_key]))
+except Exception:  # no secrets file configured: fall back to local Ollama / guideline excerpts
+    pass
+
 from kneevision.data.bilateral import (
     detect_bilateral_radiograph,
     detect_knee_prosthesis,
@@ -1961,10 +1970,10 @@ def page_clinical(device):
             # Rehabilitation Protocol
             st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
             recommender = load_rehab_recommender()
-            with st.spinner("Synthesizing personalized rehabilitation protocol (AAOS/OARSI guidelines + Llama 3.2)..."):
+            with st.spinner(f"Synthesizing personalized rehabilitation protocol (AAOS/OARSI guidelines + {recommender.llm.label})..."):
                 rehab_result = recommender.recommend(kl_grade=int(pred), patient_context=report)
 
-            badge = "🧠 Llama-3.2:1B RAG Synthesis" if rehab_result.used_llm else "📄 Guideline Excerpts (Direct)"
+            badge = f"🧠 {load_rehab_recommender().llm.label} · RAG" if rehab_result.used_llm else "📄 Guideline Excerpts (Direct)"
             badge_style = "kvp-tag-purple" if rehab_result.used_llm else "kvp-tag-blue"
 
             st.markdown(
@@ -2121,10 +2130,10 @@ def page_fusion(device, image_models):
         # Evidence-Based Rehabilitation Guidance (RAG)
         st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
         recommender = load_rehab_recommender()
-        with st.spinner("Synthesizing personalized rehabilitation protocol (AAOS/OARSI guidelines + Llama 3.2)..."):
+        with st.spinner(f"Synthesizing personalized rehabilitation protocol (AAOS/OARSI guidelines + {recommender.llm.label})..."):
             rehab_result = recommender.recommend(kl_grade=fpred, patient_context=report)
 
-        badge = "🧠 Llama-3.2:1B RAG Synthesis" if rehab_result.used_llm else "📄 Guideline Excerpts (Direct)"
+        badge = f"🧠 {load_rehab_recommender().llm.label} · RAG" if rehab_result.used_llm else "📄 Guideline Excerpts (Direct)"
         badge_style = "kvp-tag-purple" if rehab_result.used_llm else "kvp-tag-blue"
 
         st.markdown(
@@ -2626,7 +2635,11 @@ def page_rehab():
             placeholder="e.g. persistent pain on stairs, reduced walking tolerance",
         )
 
-    if getattr(load_rehab_recommender().llm, "provider", "ollama") != "ollama":
+    _llm = load_rehab_recommender().llm
+    st.caption(f"🤖 Language model for the summary: **{_llm.label}**"
+               + ("" if getattr(_llm, "provider", "ollama") != "ollama" else
+                  " · to use Grok, set `XAI_API_KEY` in `.streamlit/secrets.toml` (local) or Streamlit Cloud → Secrets"))
+    if getattr(_llm, "provider", "ollama") != "ollama":
         st.caption("🔒 The text above is sent to an external AI provider to write the summary. "
                    "Do not enter names, dates of birth or other identifying details.")
 
