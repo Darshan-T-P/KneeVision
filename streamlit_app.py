@@ -1231,6 +1231,15 @@ def load_fusion_model():
         return None, False
 
 
+def llm_status_hint(llm) -> str:
+    """Why the AI summary is missing, and what to do about it, for the provider that is configured."""
+    if getattr(llm, "provider", "ollama") == "ollama":
+        return ("No cloud language model is configured and local Ollama was not found. To enable AI summaries, add a Groq or xAI key "
+                "under Streamlit Cloud → Settings → Secrets (or in `.streamlit/secrets.toml` locally); see `.streamlit/secrets.toml.example`.")
+    return (f"{llm.label} did not return a usable summary (rate limit, network error, or the faithfulness check rejected it). "
+            "Please try again in a few seconds.")
+
+
 @st.cache_resource(show_spinner="Loading rehab guideline index...")
 def load_rehab_recommender():
     from kneevision.config.settings import GUIDELINES_DIR
@@ -2159,7 +2168,7 @@ def page_fusion(device, image_models):
         )
 
         if not rehab_result.used_llm:
-            st.caption("ℹ️ Local LLM (Ollama) was not detected at localhost:11434; displaying direct evidence guidelines.")
+            st.caption("ℹ️ " + llm_status_hint(load_rehab_recommender().llm) + " Showing the retrieved guideline excerpts directly.")
 
         show_rehab_sources(rehab_result)
 
@@ -2666,8 +2675,7 @@ def page_rehab():
         st.markdown(result.synthesis)
 
         if not result.used_llm:
-            st.warning("The language model wasn't available (or its summary failed the faithfulness check) — "
-                       "showing retrieved guideline excerpts directly instead of an LLM-synthesized summary.")
+            st.warning(llm_status_hint(recommender.llm) + " Showing the retrieved guideline excerpts directly instead.")
 
         show_rehab_sources(result)
 
